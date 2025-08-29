@@ -37,6 +37,7 @@ Generatore di parametri/rapporti utili alla costruzione di tabelle di accordatur
    - Default: sottoinsieme a partire dalla tonica, tre terze minori armoniche successive,
      tre seste maggiori armoniche successive e l'asse delle quinte (a=0, b=-5..5).
    - Opzione --danielou-all per includere la griglia completa a∈[-3..3], b∈[-5..5] (fino a 53 rapporti).
+   - Opzioni esponenti: --danielou-a INT --danielou-b INT --danielou-c INT per generare un rapporto specifico.
 
 Input e parametri principali
 ---------------------------
@@ -115,10 +116,10 @@ import os
 from typing import Iterable
 
 # Metadati di modulo
-__program_name__ = "tuning-musica-complessità"
-__version__ = "1.0"
+__program_name__ = "SIM"
+__version__ = "1.1"
 __author__ = "LUCA BIMBI"
-__date__ = "2025-08-28"
+__date__ = "2025-08-29"
 
 # Fattore di conversione per passare da logaritmo naturale a cents (scala di Ellis)
 # 1 ottava = 1200 cents, e log base 10 => si usa 1200 / log(2)
@@ -240,6 +241,25 @@ def build_danielou_ratios(full_grid: bool = False, reduce_octave: bool = True) -
         # Mantieni le 53 altezze più basse ordinate
         normalized = normalized[:53]
     return normalized
+
+
+def danielou_from_exponents(a: int, b: int, c: int, reduce_octave: bool = True) -> list[float]:
+    """Calcola un singolo rapporto del sistema Danielou dai tre esponenti (a,b,c).
+
+    Formula: r = (6/5)^a * (3/2)^b * (2)^c
+    - Se reduce_octave=True, riduce r nell'ottava [1,2).
+    Restituisce una lista con un solo valore (float) per compatibilità con le pipeline di export.
+    """
+    six_over_five: Fraction = Fraction(6, 5)
+    three_over_two: Fraction = Fraction(3, 2)
+    two: Fraction = Fraction(2, 1)
+    r: Fraction | float = (
+        pow_fraction(six_over_five, int(a)) *
+        pow_fraction(three_over_two, int(b)) *
+        pow_fraction(two, int(c))
+    )
+    r = reduce_to_octave(r) if reduce_octave else r
+    return [float(r) if isinstance(r, Fraction) else float(r)]
 
 
 def reduce_to_octave(value: Fraction | float):
@@ -810,6 +830,19 @@ def main():
         "--danielou-all", action="store_true",
         help="Usa la griglia completa Danielou (a=-3..3, b=-5..5) per ottenere fino a 53 rapporti"
     )
+    # Esponenti Danielou (a,b,c)
+    parser.add_argument(
+        "--danielou-a", type=int, default=None,
+        help="Esponente a per (6/5)^a nel sistema Danielou"
+    )
+    parser.add_argument(
+        "--danielou-b", type=int, default=None,
+        help="Esponente b per (3/2)^b nel sistema Danielou"
+    )
+    parser.add_argument(
+        "--danielou-c", type=int, default=None,
+        help="Esponente c per (2)^c nel sistema Danielou"
+    )
     parser.add_argument(
         "--no-reduce", action="store_true",
         help="Non ridurre i rapporti all'interno dell'ottava (default: riduci)",
@@ -880,6 +913,35 @@ def main():
             print(f"{freq:.2f} Hz  Step {i+1}")
         fnum, existed = write_cpstun_table(args.output_file, ratios, args.basekey, basenote)
         export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
+        export_system_tables(export_base, ratios, args.basekey, basenote)
+        try:
+            diapason_hz = float(args.diapason)
+        except TypeError:
+            diapason_hz = 440.0
+        export_comparison_tables(export_base, ratios, args.basekey, basenote, diapason_hz,
+                                 compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
+        if args.export_tun:
+            write_tun_file(export_base, ratios, args.basekey, basenote)
+        return
+
+    # Sistema Danielou tramite esponenti (a,b,c): ha priorità se specificati
+    if (args.danielou_a is not None) or (args.danielou_b is not None) or (args.danielou_c is not None):
+        if (args.danielou_a is None) or (args.danielou_b is None) or (args.danielou_c is None):
+            print("Per usare gli esponenti Danielou specifica tutti e tre: --danielou-a --danielou-b --danielou-c")
+            return
+        try:
+            a = int(args.danielou_a)
+            b = int(args.danielou_b)
+            c = int(args.danielou_c)
+        except (TypeError, ValueError):
+            print("Esponenti non validi per Danielou (devono essere interi).")
+            return
+        ratios = danielou_from_exponents(a, b, c, reduce_octave=(not args.no_reduce))
+        for i, r in enumerate(ratios):
+            freq = basenote * float(r)
+            print(f"{freq:.2f} Hz  Step {i+1}")
+        fnum, existed = write_cpstun_table(args.output_file, ratios, args.basekey, basenote)
+        export_base = args.output_file if (not existed or fnum <= 1) else f"{args.output_file}_{fnum}"
         export_system_tables(export_base, ratios, args.basekey, basenote)
         try:
             diapason_hz = float(args.diapason)

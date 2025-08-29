@@ -8,10 +8,15 @@ con esportazione di tabelle di confronto (12TET e serie armonica) e opzionale ex
 Caratteristiche principali:
 - Temperamento equabile (ET) con conversione frazione↔cents;
 - Sistema geometrico su generatore con riduzione all’ottava opzionale;
-- Sistema naturale (4:5:6) e sistema Danielou (sottoinsieme o griglia completa);
+- Sistema naturale (4:5:6) e sistema Danielou (sottoinsieme, griglia completa o esponenti a,b,c);
 - Esportazione tabelle `.txt`/`.xlsx`, file `.csd` con tabella cpstun (GEN -2), e `.tun`.
 - Confronto 12TET configurabile: `--compare-fund` per la fondamentale e `--compare-tet-align {same,nearest}` per l’allineamento.
 - File `.txt` con colonne allineate a larghezza fissa per etichette e valori.
+
+Esempio rapido (Danielou con esponenti):
+```bash
+python3 sim.py --basenote 440 --danielou-a 1 --danielou-b 2 --danielou-c -1 out_dan_exp
+```
 
 ## Licenza
 MIT License

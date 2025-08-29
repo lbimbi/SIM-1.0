@@ -166,6 +166,7 @@ Opzioni di confronto:
 ```
 --danielou          # Sottoinsieme predefinito
 --danielou-all      # Griglia completa (fino a 53 rapporti)
+--danielou-a INT --danielou-b INT --danielou-c INT  # Esponenti espliciti (a,b,c) per un singolo rapporto
 ```
 
 ---
@@ -220,7 +221,7 @@ python3 sim.py --natural 3 3 output_natural
 
 Dove `c` è usato per la riduzione all'ottava.
 
-**Due modalità:**
+**Tre modalità:**
 
 1. **Sottoinsieme (default):**
    - Tonica (1/1)
@@ -233,6 +234,10 @@ Dove `c` è usato per la riduzione all'ottava.
    - `b -> [-5, 5]`
    - Fino a 53 rapporti dopo riduzione
 
+3. **Esponenti espliciti (`--danielou-a --danielou-b --danielou-c`):**
+   - Specifica i tre esponenti (a,b,c) per generare un singolo rapporto
+   - Compatibile con `--no-reduce` per disattivare la riduzione in ottava
+
 **Esempio:**
 ```bash
 # Sottoinsieme
@@ -240,6 +245,9 @@ python3 sim.py --danielou output_danielou
 
 # Griglia completa
 python3 sim.py --danielou-all output_danielou_full
+
+# Esponenti espliciti: a=1, b=2, c=-1
+python3 sim.py --danielou-a 1 --danielou-b 2 --danielou-c -1 output_danielou_exp
 ```
 
 ---
