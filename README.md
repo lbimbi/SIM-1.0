@@ -10,6 +10,8 @@ Caratteristiche principali:
 - Sistema geometrico su generatore con riduzione all’ottava opzionale;
 - Sistema naturale (4:5:6) e sistema Danielou (sottoinsieme o griglia completa);
 - Esportazione tabelle `.txt`/`.xlsx`, file `.csd` con tabella cpstun (GEN -2), e `.tun`.
+- Confronto 12TET configurabile: `--compare-fund` per la fondamentale e `--compare-tet-align {same,nearest}` per l’allineamento.
+- File `.txt` con colonne allineate a larghezza fissa per etichette e valori.
 
 ## Licenza
 MIT License
