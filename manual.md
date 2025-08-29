@@ -1,10 +1,10 @@
 # SIM - Sistemi intonazione musicale
 
-## Documentazione Completa v1.0
+## Documentazione Completa v1.1
 
 **Autore:** LUCA BIMBI  
 **Data:** 29 Agosto 2025  
-**Versione:** 1.0
+**Versione:** 1.1
 
 ---
 
@@ -164,9 +164,8 @@ Opzioni di confronto:
 
 #### Sistema Danielou
 ```
---danielou          # Sottoinsieme predefinito
+--danielou [a,b,c]  # Sottoinsieme predefinito se omesso; con a,b,c genera un singolo rapporto (default: 0,0,1)
 --danielou-all      # Griglia completa (fino a 53 rapporti)
---danielou-a INT --danielou-b INT --danielou-c INT  # Esponenti espliciti (a,b,c) per un singolo rapporto
 ```
 
 ---
@@ -234,7 +233,7 @@ Dove `c` è usato per la riduzione all'ottava.
    - `b -> [-5, 5]`
    - Fino a 53 rapporti dopo riduzione
 
-3. **Esponenti espliciti (`--danielou-a --danielou-b --danielou-c`):**
+3. **Esponenti espliciti (`--danielou a,b,c`):**
    - Specifica i tre esponenti (a,b,c) per generare un singolo rapporto
    - Compatibile con `--no-reduce` per disattivare la riduzione in ottava
 
@@ -247,7 +246,7 @@ python3 sim.py --danielou output_danielou
 python3 sim.py --danielou-all output_danielou_full
 
 # Esponenti espliciti: a=1, b=2, c=-1
-python3 sim.py --danielou-a 1 --danielou-b 2 --danielou-c -1 output_danielou_exp
+python3 sim.py --danielou 1,2,-1 output_danielou_exp
 ```
 
 ---
@@ -586,7 +585,7 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 ## Riferimenti
 
 1. **Csound Reference Manual** - Documentazione opcode cpstun
-2. **Csound. Guida al sound design in 20 lezioni** corso su Csound
+2. **Csound. Guida al sound design in 20 lezioni**, Luca Bimbi, edizioni LSWR
 3. **I numeri della musica**, Walter Branchi, pan edizioni
 
 ---
@@ -617,17 +616,17 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 
 ### Tabella Rapporti Comuni
 
-| Sistema | Rapporto | Cents | Intervallo |
-|---------|----------|-------|------------|
-| Ottava | 2/1 | 1200 | P8 |
-| Quinta giusta | 3/2 | 701.96 | P5 |
-| Quarta giusta | 4/3 | 498.04 | P4 |
-| Terza maggiore | 5/4 | 386.31 | M3 |
-| Terza minore | 6/5 | 315.64 | m3 |
-| Tono maggiore | 9/8 | 203.91 | M2 |
-| Tono minore | 10/9 | 182.40 | m2 |
+| Sistema            | Rapporto | Cents | Intervallo |
+|--------------------|----------|-------|------------|
+| Ottava             | 2/1 | 1200 | P8 |
+| Quinta giusta      | 3/2 | 701.96 | P5 |
+| Quarta giusta      | 4/3 | 498.04 | P4 |
+| Terza maggiore     | 5/4 | 386.31 | M3 |
+| Terza minore       | 6/5 | 315.64 | m3 |
+| Seconda maggiore   | 9/8 | 203.91 | M2 |
+| Seconda minore     | 10/9 | 182.40 | m2 |
 | Semitono diatonico | 16/15 | 111.73 | m2 |
-| Comma sintonico | 81/80 | 21.51 | - |
+| Comma sintonico    | 81/80 | 21.51 | - |
 
 ---
 

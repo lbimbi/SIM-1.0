@@ -15,7 +15,7 @@ Caratteristiche principali:
 
 Esempio rapido (Danielou con esponenti):
 ```bash
-python3 sim.py --basenote 440 --danielou-a 1 --danielou-b 2 --danielou-c -1 out_dan_exp
+python3 sim.py --basenote 440 --danielou 1,2,-1 out_dan_exp
 ```
 
 ## Licenza

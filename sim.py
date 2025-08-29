@@ -3,10 +3,10 @@
 """
 SIM - Sistemi intonazione musicale
 Copyright (c) 2025 Luca Bimbi
-Licensed under the MIT License - see LICENSE file for details
+Distribuito secondo la licenza MIT - vedi il file LICENSE per i dettagli
 
 Nome programma: SIM - Sistemi intonazione musicale
-Versione: 1.0
+Versione: 1.1
 Autore: LUCA BIMBI
 Data: 2025-08-29
 
@@ -37,7 +37,7 @@ Generatore di parametri/rapporti utili alla costruzione di tabelle di accordatur
    - Default: sottoinsieme a partire dalla tonica, tre terze minori armoniche successive,
      tre seste maggiori armoniche successive e l'asse delle quinte (a=0, b=-5..5).
    - Opzione --danielou-all per includere la griglia completa a∈[-3..3], b∈[-5..5] (fino a 53 rapporti).
-   - Opzioni esponenti: --danielou-a INT --danielou-b INT --danielou-c INT per generare un rapporto specifico.
+   - Esponenti opzionali: usa "--danielou a,b,c" per generare un rapporto specifico.
 
 Input e parametri principali
 ---------------------------
@@ -121,7 +121,7 @@ __version__ = "1.1"
 __author__ = "LUCA BIMBI"
 __date__ = "2025-08-29"
 
-# Fattore di conversione per passare da logaritmo naturale a cents (scala di Ellis)
+# Fattore di conversione per passare da logaritmo a cents (scala di Ellis)
 # 1 ottava = 1200 cents, e log base 10 => si usa 1200 / log(2)
 ELLIS_CONVERSION_FACTOR = 1200 / math.log(2)
 
@@ -276,7 +276,7 @@ def reduce_to_octave(value: Fraction | float):
             value *= two
         return value
     else:
-        # float
+        # virgola mobile (float)
         while value >= 2.0:
             value /= 2.0
         while value < 1.0:
@@ -299,6 +299,43 @@ def int_or_fraction(value):
             raise argparse.ArgumentTypeError(f"'{value}' non è un intero o una frazione valida.")
 
 
+def parse_danielou_tuple(value: str) -> tuple[int, int, int]:
+    """Argparse type: converte una stringa "a,b,c" oppure "a:b:c" in una tupla di tre interi.
+
+    - Consente spazi opzionali attorno ai separatori.
+    - Esempi: "0,0,1", "1,-2,3", "1:2:-1".
+    """
+    if value is None:
+        # dovrebbe essere gestito da 'const' su argparse
+        return (0, 0, 1)
+    # Normalizza i separatori accettati
+    for sep in (',', ':'):
+        if sep in value:
+            parts = [p.strip() for p in value.split(sep)]
+            break
+    else:
+        # Se nessun separatore riconosciuto, prova a interpretare come singolo intero a => (a,0,1)
+        value = value.strip()
+        try:
+            a = int(value)
+            return (a, 0, 1)
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                "Formato non valido per --danielou. Usa 'a,b,c' (es. 0,0,1)."
+            )
+    if len(parts) != 3:
+        raise argparse.ArgumentTypeError(
+            "Formato non valido per --danielou. Usa 'a,b,c' (es. 0,0,1)."
+        )
+    try:
+        a, b, c = (int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "Esponenti non validi per --danielou (devono essere interi)."
+        )
+    return (a, b, c)
+
+
 def ratio_et(index: int, cents: int | Fraction) -> float:
     """Calcola il rapporto della radice per un dato temperamento equabile.
 
@@ -307,7 +344,7 @@ def ratio_et(index: int, cents: int | Fraction) -> float:
 
     Restituisce il rapporto r tale che r**index = exp(cents / (1200/log(2))).
     """
-    decimal_number = math.exp((cents / ELLIS_CONVERSION_FACTOR))  # antilog
+    decimal_number = math.exp((cents / ELLIS_CONVERSION_FACTOR))  # antilogaritmo
     ratio = decimal_number ** (1 / index)
     return ratio
 
@@ -799,7 +836,7 @@ def main():
 
     # Temperamento equabile: indice della radice e ampiezza in cents (o frazione convertibile)
     parser.add_argument(
-        "-et", nargs=2, default=(12, 200), type=int_or_fraction,
+        "--et", nargs=2, default=(12, 200), type=int_or_fraction,
         help=(
             "Temperamento equabile definibile dall'utente. "
             "Richiede: indice della radice e valore dell'intervallo in cents (o frazione)."
@@ -823,25 +860,15 @@ def main():
     )
     # Sistema Danielou
     parser.add_argument(
-        "--danielou", action="store_true",
-        help="Genera il sistema Danielou (sottoinsieme predefinito)"
+        "--danielou", nargs="?", type=parse_danielou_tuple, default=None, const=(0, 0, 1),
+        help=(
+            "Sistema Danielou: opzionalmente specifica gli esponenti 'a,b,c' (es. 1,2,-1). "
+            "Se ometti gli esponenti, genera il sottoinsieme predefinito; usa --danielou-all per la griglia completa."
+        )
     )
     parser.add_argument(
         "--danielou-all", action="store_true",
         help="Usa la griglia completa Danielou (a=-3..3, b=-5..5) per ottenere fino a 53 rapporti"
-    )
-    # Esponenti Danielou (a,b,c)
-    parser.add_argument(
-        "--danielou-a", type=int, default=None,
-        help="Esponente a per (6/5)^a nel sistema Danielou"
-    )
-    parser.add_argument(
-        "--danielou-b", type=int, default=None,
-        help="Esponente b per (3/2)^b nel sistema Danielou"
-    )
-    parser.add_argument(
-        "--danielou-c", type=int, default=None,
-        help="Esponente c per (2)^c nel sistema Danielou"
     )
     parser.add_argument(
         "--no-reduce", action="store_true",
@@ -924,19 +951,9 @@ def main():
             write_tun_file(export_base, ratios, args.basekey, basenote)
         return
 
-    # Sistema Danielou tramite esponenti (a,b,c): ha priorità se specificati
-    if (args.danielou_a is not None) or (args.danielou_b is not None) or (args.danielou_c is not None):
-        if (args.danielou_a is None) or (args.danielou_b is None) or (args.danielou_c is None):
-            print("Per usare gli esponenti Danielou specifica tutti e tre: --danielou-a --danielou-b --danielou-c")
-            return
-        try:
-            a = int(args.danielou_a)
-            b = int(args.danielou_b)
-            c = int(args.danielou_c)
-        except (TypeError, ValueError):
-            print("Esponenti non validi per Danielou (devono essere interi).")
-            return
-        ratios = danielou_from_exponents(a, b, c, reduce_octave=(not args.no_reduce))
+    # Sistema Danielou: esponenti opzionali via --danielou oppure griglia completa via --danielou-all
+    if args.danielou_all:
+        ratios = build_danielou_ratios(full_grid=True, reduce_octave=(not args.no_reduce))
         for i, r in enumerate(ratios):
             freq = basenote * float(r)
             print(f"{freq:.2f} Hz  Step {i+1}")
@@ -953,10 +970,13 @@ def main():
             write_tun_file(export_base, ratios, args.basekey, basenote)
         return
 
-    # Sistema Danielou: controlla sia --danielou che --danielou-all
-    if args.danielou or args.danielou_all:
-        full = bool(args.danielou_all)
-        ratios = build_danielou_ratios(full_grid=full, reduce_octave=(not args.no_reduce))
+    if args.danielou is not None:
+        # Se è stato passato --danielou senza argomenti, genera il sottoinsieme predefinito
+        if tuple(args.danielou) == (0, 0, 1):
+            ratios = build_danielou_ratios(full_grid=False, reduce_octave=(not args.no_reduce))
+        else:
+            a, b, c = args.danielou
+            ratios = danielou_from_exponents(a, b, c, reduce_octave=(not args.no_reduce))
         for i, r in enumerate(ratios):
             freq = basenote * float(r)
             print(f"{freq:.2f} Hz  Step {i+1}")
