@@ -6,9 +6,9 @@ Copyright (c) 2025 Luca Bimbi
 Distribuito secondo la licenza MIT - vedi il file LICENSE per i dettagli
 
 Nome programma: SIM - Sistemi intonazione musicale
-Versione: 1.1
+Versione: 1.2
 Autore: LUCA BIMBI
-Data: 2025-08-29
+Data: 2025-08-30
 
 Descrizione
 -----------
@@ -94,10 +94,10 @@ Output
   rapporti saranno riportati così come sono.
 - Esporta tabelle del sistema generato (Step, MIDI, Ratio, Hz) in "<output_file>_system.txt" e, se disponibile openpyxl,
   anche "<output_file>_system.xlsx".
-- Esporta tabelle di confronto con 12TET e con la serie armonica (incluse colonne DeltaHz) in
+- Esporta tabelle di confronto con 12TET, serie armonica e serie subarmonica (incluse colonne DeltaHz) in
   "<output_file>_compare.txt" e, se disponibile openpyxl, anche "<output_file>_compare.xlsx"
-  disponendo valori vicini affiancati (Custom accanto a Harmonic) e usando colori distinti
-  (rosso per Custom, verde per Harmonics, blu per TET), con evidenziazione quando le differenze sono molto piccole.
+  disponendo valori vicini affiancati (Custom accanto a Harmonic/Subharmonic) e usando colori distinti
+  (rosso per Custom, verde per Harmonics, giallo per Subharmonics, blu per TET), con evidenziazione quando le differenze sono molto piccole.
 - Opzionale: esporta un file ".tun" (AnaMark TUN) con la mappatura assoluta di tutte le 128 note MIDI
   usando --export-tun. Le altezze dei passi generati vengono assegnate a partire da basekey,
   con frequenze assolute calcolate come basefrequency * ratio; le altre note vengono riempite
@@ -117,13 +117,16 @@ from typing import Iterable
 
 # Metadati di modulo
 __program_name__ = "SIM"
-__version__ = "1.1"
+__version__ = "1.2"
 __author__ = "LUCA BIMBI"
-__date__ = "2025-08-29"
+__date__ = "2025-08-30"
 
 # Fattore di conversione per passare da logaritmo a cents (scala di Ellis)
 # 1 ottava = 1200 cents, e log base 10 => si usa 1200 / log(2)
 ELLIS_CONVERSION_FACTOR = 1200 / math.log(2)
+
+# Fondamentale di default per la serie subarmonica (impostata da CLI in main)
+DEFAULT_SUBHARM_FUND_HZ: float | None = None
 
 # pattern REGEX per determinare funzione e numero tabella in un file esistente
 PATTERN = re.compile(r"\bf\s*(\d+)\b")
@@ -676,15 +679,16 @@ def export_system_tables(output_base: str, ratios: list[float], basekey: int, ba
 
 
 def export_comparison_tables(output_base: str, ratios: list[float], basekey: int, basenote_hz: float,
-                             diapason_hz: float, compare_fund_hz: float | None = None, tet_align: str = "same") -> None:
-    """Esporta tabelle di confronto con 12TET e con la serie armonica.
+                             diapason_hz: float, compare_fund_hz: float | None = None, tet_align: str = "same",
+                             subharm_fund_hz: float | None = None) -> None:
+    """Esporta tabelle di confronto con 12TET, serie armonica e serie subarmonica.
 
     Crea:
     - {output_base}_compare.txt
     - {output_base}_compare.xlsx (se openpyxl disponibile)
-    Colonne TXT: Step, MIDI, Ratio, Custom_Hz, Harmonic_Hz, DeltaHz_Harm, TET_Hz, DeltaHz_TET
-    In Excel abbiniamo valori vicini affiancandoli (Custom accanto a Harmonic) e li coloriamo
-    con colori diversi: Custom in rosso, Harmonic in verde, TET in blu. Se |Delta| < 17 Hz
+    Colonne TXT: Step, MIDI, Ratio, Custom_Hz, Harmonic_Hz, DeltaHz_Harm, Subharm_Hz, DeltaHz_Sub, TET_Hz, DeltaHz_TET
+    In Excel abbiniamo valori vicini affiancandoli (Custom accanto a Harmonic/Subharmonic) e li coloriamo
+    con colori distinti: Custom in rosso, Harmonic in verde, Subharm in giallo, TET in blu. Se |Delta| < 17 Hz
     tra Custom e Harmonic, evidenziamo entrambi in grassetto.
 
     Parametri aggiuntivi:
@@ -692,10 +696,16 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
       Se None, si usa basenote_hz.
     - tet_align: "same" (il 12TET parte esattamente da compare_fund_hz) oppure "nearest"
       (per ogni Custom si prende la nota 12TET più vicina nel reticolo ancorato a compare_fund_hz).
+    - subharm_fund_hz: fondamentale per la serie subarmonica. Se None, si usa A4 del diapason corrente (es. 440 Hz).
     """
     proximity_thr = 17.0  # Hz per considerare "vicini"
 
     base_cmp = compare_fund_hz if compare_fund_hz is not None else basenote_hz
+    sub_base = (
+        subharm_fund_hz
+        if subharm_fund_hz is not None
+        else (DEFAULT_SUBHARM_FUND_HZ if DEFAULT_SUBHARM_FUND_HZ is not None else diapason_hz)
+    )  # A4 del diapason o valore globale impostato
 
     def tet_from_base(step_i: int, custom_val: float | None = None) -> float:
         if tet_align == "nearest" and custom_val is not None and custom_val > 0 and base_cmp > 0:
@@ -705,12 +715,13 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
         # default: stesso indice i dalla fondamentale
         return base_cmp * (2.0 ** (step_i / 12.0))
 
-    # Testo (mettiamo Custom e Harmonic affiancati) con colonne allineate a larghezza fissa
+    # Testo (mettiamo Custom e Harmonic/Subharmonic affiancati) con colonne allineate a larghezza fissa
     txt_path = f"{output_base}_compare.txt"
     try:
         headers = [
             "Step", "MIDI", "Ratio",
             "Custom_Hz", "Harmonic_Hz", "DeltaHz_Harm",
+            "Subharm_Hz", "DeltaHz_Sub",
             "TET_Hz", "DeltaHz_TET",
         ]
         rows: list[list[str]] = []
@@ -718,9 +729,11 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
             midi = basekey + i
             custom_hz = basenote_hz * float(r)
             harm_hz = base_cmp * (i + 1)
+            sub_hz = sub_base / (i + 1)
             tet_hz = tet_from_base(i, custom_hz)
             d_tet = custom_hz - tet_hz
             d_har = custom_hz - harm_hz
+            d_sub = custom_hz - sub_hz
             approx = "≈" if abs(d_har) < proximity_thr else ""
             rows.append([
                 str(i),
@@ -729,6 +742,8 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
                 f"{custom_hz:.6f}{approx}",
                 f"{harm_hz:.6f}{approx}",
                 f"{d_har:.6f}",
+                f"{sub_hz:.6f}",
+                f"{d_sub:.6f}",
                 f"{tet_hz:.6f}",
                 f"{d_tet:.6f}",
             ])
@@ -758,6 +773,7 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
         headers = [
             "Step", "MIDI", "Ratio",
             "Custom_Hz", "Harmonic_Hz", "|DeltaHz_Harm|",
+            "Subharm_Hz", "|DeltaHz_Sub|",
             "TET_Hz", "|DeltaHz_TET|",
         ]
         ws.append(headers)
@@ -769,21 +785,25 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
         # Riempimenti per le serie
         fill_custom = PatternFill(start_color="FFFFCCCC", end_color="FFFFCCCC", fill_type="solid")  # rosso chiaro
         fill_harm = PatternFill(start_color="FFCCFFCC", end_color="FFCCFFCC", fill_type="solid")    # verde chiaro
+        fill_sub = PatternFill(start_color="FFFFFFCC", end_color="FFFFFFCC", fill_type="solid")      # giallo chiaro
         fill_tet = PatternFill(start_color="FFCCE5FF", end_color="FFCCE5FF", fill_type="solid")      # blu chiaro
 
         for i, r in enumerate(ratios):
             midi = basekey + i
             custom_hz = basenote_hz * float(r)
             harm_hz = base_cmp * (i + 1)
+            sub_hz = sub_base / (i + 1)
             tet_hz = tet_from_base(i, custom_hz)
             d_tet = custom_hz - tet_hz
             d_har = custom_hz - harm_hz
-            ws.append([i, midi, float(r), custom_hz, harm_hz, abs(d_har), tet_hz, abs(d_tet)])
+            d_sub = custom_hz - sub_hz
+            ws.append([i, midi, float(r), custom_hz, harm_hz, abs(d_har), sub_hz, abs(d_sub), tet_hz, abs(d_tet)])
             row = ws.max_row
             # Applica colorazione per serie
             ws.cell(row=row, column=4).fill = fill_custom
             ws.cell(row=row, column=5).fill = fill_harm
-            ws.cell(row=row, column=7).fill = fill_tet
+            ws.cell(row=row, column=7).fill = fill_sub
+            ws.cell(row=row, column=9).fill = fill_tet
             # Evidenziazione di prossimità tra Custom e Harmonic
             is_close = abs(d_har) < proximity_thr
             if is_close:
@@ -836,7 +856,7 @@ def main():
 
     # Temperamento equabile: indice della radice e ampiezza in cents (o frazione convertibile)
     parser.add_argument(
-        "--et", nargs=2, default=(12, 200), type=int_or_fraction,
+        "--et", nargs=2, default=(12, 200), metavar=("INDEX", "INTERVAL"), type=int_or_fraction,
         help=(
             "Temperamento equabile definibile dall'utente. "
             "Richiede: indice della radice e valore dell'intervallo in cents (o frazione)."
@@ -879,14 +899,18 @@ def main():
         help="Esporta anche un file .tun (AnaMark TUN) con [Exact Tuning] su 128 note",
     )
 
-    # Opzioni per il confronto (serie armonica e 12TET)
+    # Opzioni per il confronto (serie armonica, subarmonica e 12TET)
     parser.add_argument(
         "--compare-fund", type=note_name_or_frequency, default=None,
-        help="Fondamentale per il confronto (nota es. 'A4' o frequenza in Hz). Default: basenote"
+        help="Fondamentale per il confronto armonico (nota es. 'A4' o frequenza in Hz). Default: basenote"
     )
     parser.add_argument(
         "--compare-tet-align", choices=["same", "nearest"], default="same",
         help="Allineamento 12TET nel confronto: 'same' dalla fondamentale, 'nearest' nota 12TET più vicina alla Custom"
+    )
+    parser.add_argument(
+        "--subharm-fund", type=note_name_or_frequency, default=None,
+        help="Fondamentale per la serie subarmonica (nota es. 'A4' o frequenza in Hz). Default: A4 (diapason)"
     )
 
     # File di output (non ancora utilizzato in questa versione)
@@ -923,6 +947,20 @@ def main():
             cf_midi = convert_note_name_to_midi(args.compare_fund)
             compare_fund_hz = convert_midi_to_hz(cf_midi, args.diapason)
 
+    # Determina la fondamentale per la serie subarmonica (di default A4 = diapason)
+    if args.subharm_fund is None:
+        subharm_fund_hz = float(args.diapason)
+    else:
+        if isinstance(args.subharm_fund, float):
+            subharm_fund_hz = args.subharm_fund
+        else:
+            sh_midi = convert_note_name_to_midi(args.subharm_fund)
+            subharm_fund_hz = convert_midi_to_hz(sh_midi, args.diapason)
+
+    # Imposta la fondamentale subarmonica di default per le esportazioni
+    global DEFAULT_SUBHARM_FUND_HZ
+    DEFAULT_SUBHARM_FUND_HZ = subharm_fund_hz
+
     # Sistema naturale (4:5:6): priorità alta rispetto a geometric/ET
     if args.natural:
         try:
@@ -946,7 +984,8 @@ def main():
         except TypeError:
             diapason_hz = 440.0
         export_comparison_tables(export_base, ratios, args.basekey, basenote, diapason_hz,
-                                 compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
+                                 compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align,
+                                 subharm_fund_hz=subharm_fund_hz)
         if args.export_tun:
             write_tun_file(export_base, ratios, args.basekey, basenote)
         return

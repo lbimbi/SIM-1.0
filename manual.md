@@ -1,10 +1,10 @@
 # SIM - Sistemi intonazione musicale
 
-## Documentazione Completa v1.1
+## Documentazione Completa v1.2
 
 **Autore:** LUCA BIMBI  
-**Data:** 29 Agosto 2025  
-**Versione:** 1.1
+**Data:** 30 Agosto 2025  
+**Versione:** 1.2
 
 ---
 
@@ -25,14 +25,17 @@
 
 ## Introduzione
 
-`SIM - Sistemi intonazione musicale` è un generatore avanzato di parametri e rapporti per la costruzione di tabelle di intonazione musicale. Il programma è particolarmente utile per compositori e ricercatori che lavorano con sistemi di intonazione non standard in Csound attraverso l'opcode `cpstun`.
+`SIM - Sistemi intonazione musicale` è un generatore avanzato di parametri e rapporti
+per la costruzione di tabelle di intonazione musicale. Il programma è particolarmente
+utile per compositori e ricercatori che lavorano con sistemi di intonazione non standard
+in Csound attraverso l'opcode `cpstun`.
 
 ### Scopo Principale
 
 Il software genera:
 - Tabelle di accordatura per Csound (formato GEN -2 non normalizzato)
 - File TUN per software compatibili (AnaMark .TUN)
-- Tabelle comparative con 12-TET e serie armonica
+- Tabelle comparative con 12-TET, serie armonica e serie subarmonica
 - Esportazioni in formato testo ed Excel
 
 ### Sistemi Supportati
@@ -112,14 +115,19 @@ Crea automaticamente tabelle `cpstun` in formato GEN -2 con:
 Confronto automatico con:
 - 12-TET (temperamento equabile a 12 toni)
 - Serie armonica
+- Serie subarmonica
 - Calcolo delle differenze in Hz
 - Evidenziazione delle prossimità (< 17 Hz)
 
 Opzioni di confronto:
-- `--compare-fund`: imposta la fondamentale per la serie armonica e per l’ancoraggio della griglia 12TET (default: `--basenote`).
+- `--compare-fund`: imposta la fondamentale per la serie armonica e per
+  l’ancoraggio della griglia 12TET (default: `--basenote`).
 - `--compare-tet-align {same, nearest}`:
-  - `same`: il 12TET parte dalla fondamentale di confronto e avanza di semitono in semitono (i = step).
-  - `nearest`: per ogni valore Custom viene scelto il grado 12TET più vicino nella griglia ancorata alla fondamentale di confronto.
+  - `same`: il 12TET parte dalla fondamentale di confronto e avanza di
+    semitono in semitono (i = step).
+  - `nearest`: per ogni valore Custom viene scelto il grado 12TET più
+    vicino nella griglia ancorata alla fondamentale di confronto.
+- `--subharm-fund`: imposta la fondamentale per la serie subarmonica (default: A4 del diapason corrente, es. 440 Hz).
 
 ---
 
@@ -137,13 +145,14 @@ Opzioni di confronto:
 | `--no-reduce` | flag | - | Non riduce i rapporti all'ottava |
 | `--compare-fund` | nota/Hz | basenote | Fondamentale per confronto serie armonica e ancoraggio 12TET |
 | `--compare-tet-align` | enum | "same" | Allineamento 12TET: `same` dalla fondamentale o `nearest` nota più vicina |
+| `--subharm-fund` | nota/Hz | A4 (diapason) | Fondamentale per serie subarmonica |
 | `output_file` | string | richiesto | Nome base per i file di output |
 
 ### Parametri Sistema
 
 #### Temperamento Equabile
 ```
--et INDEX CENTS
+--et INDEX CENTS
 ```
 - `INDEX`: Indice della radice (es. 12 per 12-TET)
 - `CENTS`: Ampiezza in cents o frazione (es. 1200 o 3/2)
@@ -309,18 +318,21 @@ Nota: le colonne sono allineate a larghezza fissa (padding con spazi) per miglio
 
 **File testo:** `<output_file>_compare.txt`
 ```
-Step    MIDI    Ratio           Custom_Hz    Harmonic_Hz    DeltaHz_Harm    TET_Hz    DeltaHz_TET
-0       60      1.0000000000    440.000000   440.000000     0.000000        440.000   0.000000
+Step    MIDI    Ratio           Custom_Hz    Harmonic_Hz    DeltaHz_Harm
+Subharm_Hz    DeltaHz_Sub    TET_Hz       DeltaHz_TET
+0       60      1.0000000000    440.000000   440.000000     0.000000        440.000000    0.000000       440.000000   0.000000
 ...
 ```
-Nota: anche per il confronto le colonne sono allineate a larghezza fissa (padding con spazi) e quando Custom e Harmonic sono molto vicini viene aggiunto il simbolo “≈”.
+Nota: anche per il confronto le colonne sono allineate a larghezza fissa (padding
+con spazi) e quando Custom e Harmonic sono molto vicini viene aggiunto il simbolo “≈”.
 
 **File Excel:** `<output_file>_compare.xlsx` (se openpyxl installato)
 - Colori distintivi:
   - Rosso chiaro: Custom
   - Verde chiaro: Harmonic
+  - Giallo chiaro: Subharmonic
   - Blu chiaro: TET
-- Grassetto per differenze < 1 Hz tra Custom e Harmonic
+- Grassetto per differenze < 17 Hz tra Custom e Harmonic
 
 ---
 
@@ -568,18 +580,22 @@ MIT License
 
 Copyright (c) 2025 Luca Bimbi
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-documentation files (the “Software”), to deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
-persons to whom the Software is furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+software and associated documentation files (the “Software”), to deal in the Software
+without restriction, including without limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
-Software.
+to whom the Software is furnished to do so, subject to the following conditions:
 
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ---
 
 ## Riferimenti
@@ -630,4 +646,4 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 
 ---
 
-*Fine documentazione SIM - Sistemi intonazione musicale v1.0*
+*Fine documentazione SIM - Sistemi intonazione musicale v1.2*
