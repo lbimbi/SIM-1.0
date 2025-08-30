@@ -86,12 +86,14 @@ Output
   una f‑tabella di tipo GEN -2 che contiene i seguenti campi all'interno della lista dati:
   [numgrades, interval, basefreq, basekey, r1, r2, ...].
   - numgrades = numero di rapporti generati;
-  - interval = 2.0 se tutti i rapporti sono in [1,2), altrimenti 0.0 se non definibile;
+  - interval = intervallo di ripetizione del sistema (es. 2 per ottava, 1.5 per quinta). Se il comando
+    conosce l'intervallo (ET o sistemi normalizzati all'ottava), viene scritto esplicitamente;
+    in caso contrario, viene inferito come 2.0 quando tutti i rapporti sono in [1,2] (inclusivo) e 0.0
+    quando non determinabile;
   - basefreq = frequenza assoluta associata a basekey (Hz);
   - basekey = nota MIDI di riferimento.
   Ogni esecuzione sullo stesso file aggiunge una nuova tabella con numero (f_max + 1). I valori r1..rn sono i
-  rapporti (unitless) rispetto a basefreq; se i rapporti superano l'ottava, interval verrà impostato a 0.0 e i
-  rapporti saranno riportati così come sono.
+  rapporti (unitless) rispetto a basefreq.
 - Esporta tabelle del sistema generato (Step, MIDI, Ratio, Hz) in "<output_file>_system.txt" e, se disponibile openpyxl,
   anche "<output_file>_system.xlsx".
 - Esporta tabelle di confronto con 12TET, serie armonica e serie subarmonica (incluse colonne DeltaHz) in
@@ -580,15 +582,17 @@ def ensure_midi_fit(ratios: list[float], basekey: int, prefer_truncate: bool) ->
             print(f"WARNING: basekey adattata da {bk} a {bk_eff} per includere tutti i {n} passi entro MIDI 0..127.")
         return ratios, bk_eff
 
-def write_cpstun_table(output_base: str, ratios: list[float], basekey: int, basefrequency: float) -> tuple[int, bool]:
+def write_cpstun_table(output_base: str, ratios: list[float], basekey: int, basefrequency: float, interval_value: float | None = None) -> tuple[int, bool]:
     """Crea o appende una tabella cpstun in un file Csound .csd.
 
     Formato GEN -2 atteso da cpstun:
     fN 0 size -2  numgrades interval basefreq basekey  r1 r2 r3 ...
 
     - numgrades: numero di gradi nell'intervallo (len(ratios))
-    - interval: intervallo di ripetizione; 2.0 per ottava (se i rapporti sono in [1,2)),
-      0.0 se non definibile (rapporti che superano l'ottava o nessuna ripetizione coerente)
+    - interval: intervallo di ripetizione del sistema.
+      • Se interval_value > 0 è fornito, viene usato direttamente (es. 2 per ottava, 1.5 per quinta, ecc.).
+      • Altrimenti, inferenza di fallback: 2.0 se tutti i rapporti sono nell'ottava [1,2] (inclusiva)
+        e c'è almeno un valore strettamente < 2; altrimenti 0.0.
     - basefreq: frequenza assoluta associata a basekey (basenote in Hz)
     - basekey: nota MIDI a cui si riferisce basefreq
     - r1..rn: rapporti unitari
@@ -636,13 +640,18 @@ def write_cpstun_table(output_base: str, ratios: list[float], basekey: int, base
 
     # determina header cpstun
     numgrades = int(len(ratios_sorted))
-    # intervallo di ripetizione: 2.0 se tutti i rapporti sono nell'ottava [1,2), altrimenti 0.0
-    try:
-        rmin = min(ratios_sorted) if ratios_sorted else 1.0
-        rmax = max(ratios_sorted) if ratios_sorted else 1.0
-    except Exception:
-        rmin, rmax = 1.0, 1.0
-    interval = 2.0 if (rmin >= 1.0 and rmax < 2.0) else 0.0
+    # intervallo di ripetizione: usa interval_value se fornito (>0), altrimenti inferenza di fallback
+    if interval_value is not None and isinstance(interval_value, (int, float)) and interval_value > 0:
+        interval = float(interval_value)
+    else:
+        try:
+            rmin = min(ratios_sorted) if ratios_sorted else 1.0
+            rmax = max(ratios_sorted) if ratios_sorted else 1.0
+        except Exception:
+            rmin, rmax = 1.0, 1.0
+        # accetta [1,2] inclusivo come finestra d'ottava
+        eps = 1e-9
+        interval = 2.0 if (rmin >= 1.0 - eps and rmax <= 2.0 + eps) else 0.0
 
     # compone la lista dati: header + ratios
     data_list: list[str] = []
@@ -1341,7 +1350,7 @@ def main():
         # MIDI fit (adapt or truncate)
         ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
         print_step_hz_table(ratios_eff, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, 2.0)
         export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
         export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
@@ -1361,7 +1370,7 @@ def main():
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
         ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
         print_step_hz_table(ratios_eff, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, 2.0)
         export_base = args.output_file if (not existed or fnum <= 1) else f"{args.output_file}_{fnum}"
         export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
@@ -1382,7 +1391,7 @@ def main():
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
         ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
         print_step_hz_table(ratios_eff, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, 2.0)
         export_base = args.output_file if (not existed or fnum <= 1) else f"{args.output_file}_{fnum}"
         export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
@@ -1448,7 +1457,7 @@ def main():
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
         ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
         print_step_hz_table(ratios_eff, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, 2.0)
         export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
         export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
@@ -1497,7 +1506,7 @@ def main():
     ratios_spanned = repeat_ratios(base_ratios, args.span, interval_factor)
     ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
     print_step_hz_table(ratios_eff, basenote)
-    fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
+    fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, interval_factor)
     export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
     export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
     try:
