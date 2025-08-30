@@ -149,6 +149,7 @@ Opzioni di confronto:
 | `--export-tun` | flag | - | Esporta file .tun con 128 note MIDI |
 | `--no-reduce` | flag | - | Non riduce i rapporti all'ottava |
 | `--span`, `--ambitus` | int | 1 | Numero di ripetizioni dell'intervallo base del sistema (es.: 2 per coprire due volte l'intervallo) |
+| `--interval-zero` | flag | - | Imposta interval=0 nelle tabelle cpstun per disattivare la ripetizione e considerare lo span nell'elenco dei rapporti |
 | `--compare-fund` | nota/Hz | basenote | Fondamentale per confronto serie armonica e ancoraggio 12TET (può essere usato senza argomento per assumere `basenote`) |
 | `--compare-tet-align` | enum | "same" | Allineamento 12TET: `same` dalla fondamentale o `nearest` nota più vicina |
 | `--subharm-fund` | nota/Hz | A5 | Fondamentale per serie subarmonica |
@@ -302,7 +303,7 @@ f 1 0 16 -2  12 2.0 440.0 60  1.0 1.059463 1.122462 ...
 Ambitus e interval:
 - Di default la generazione del file .csd ignora l'ambitus (--span/--ambitus). La ripetizione del sistema è governata dal valore di "interval" nella tabella cpstun.
 - Per tabelle ripetibili, si usa l'intervallo del sistema (es. 2.0 per l'ottava, oppure exp(cents/...) per ET) e si elencano solo i gradi base (tanti quanti gli step del sistema).
-- Se vuoi disattivare la ripetizione, usa l'opzione --interval-zero: in tal caso interval=0 e la tabella è non ripetibile; vengono elencati tanti ratio quanti sono gli step × span (ambitus considerato).
+- Se vuoi disattivare la ripetizione, usa l'opzione --interval-zero: in tal caso interval=0 e la tabella è non ripetibile; vengono elencati tanti ratio quanti sono gli step × span (ambitus considerato). Utile quando vuoi una scala finita e non ciclica in Csound.
 
 **Struttura dati:**
 - `numgrades`: numero di rapporti
@@ -387,6 +388,18 @@ python3 sim.py \
     --et 12 1200 \
     --span 2 \
     output_12tet_2oct
+```
+
+### Esempio 1c: 12-TET non ripetibile con interval=0 (considera span)
+```bash
+python3 sim.py \
+    --basekey 60 \
+    --basenote A4 \
+    --diapason 440 \
+    --et 12 1200 \
+    --span 2 \
+    --interval-zero \
+    output_12tet_interval0
 ```
 
 ### Esempio 2: Scala Pitagorica (12 quinte)
