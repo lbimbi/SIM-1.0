@@ -137,7 +137,7 @@ Opzioni di confronto:
 
 | Parametro | Tipo | Default | Descrizione |
 |-----------|------|---------|-------------|
-| `--basenote` | nota/Hz | 440 | Nota di riferimento (es. "A4") o frequenza in Hz |
+| `--basenote` | nota/Hz | C4 | Nota di riferimento (es. "A4") o frequenza in Hz (ora opzionale; default: C4) |
 | `--basekey` | int | 60 | Nota MIDI base per tabella cpstun (60 = C4) |
 | `--diapason` | float | 440 | Diapason di riferimento in Hz |
 | `-v, --version` | - | - | Visualizza versione del programma |
@@ -189,7 +189,7 @@ Divide un intervallo (solitamente l'ottava) in parti uguali su scala logaritmica
 
 **Esempio 12-TET:**
 ```bash
-python3 sim.py -et 12 1200 output_12tet
+python3 sim.py --et 12 1200 output_12tet
 ```
 
 ### 2. Sistema Geometrico
@@ -344,7 +344,7 @@ python3 sim.py \
     --basekey 60 \
     --basenote A4 \
     --diapason 440 \
-    -et 12 1200 \
+    --et 12 1200 \
     output_12tet
 ```
 
@@ -612,7 +612,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```bash
 # 12-TET standard
-./sim.py -et 12 1200 out
+./sim.py --et 12 1200 out
 
 # Scala pitagorica
 ./sim.py --geometric 3/2 12 out
@@ -624,7 +624,7 @@ DEALINGS IN THE SOFTWARE.
 ./sim.py --danielou-all --export-tun out
 
 # 19-TET
-./sim.py -et 19 1200 out
+./sim.py --et 19 1200 out
 
 # Serie armonica (primi 16)
 ./sim.py --geometric 1 16 --no-reduce out

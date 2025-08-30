@@ -850,7 +850,7 @@ def main():
 
     # Nota/frequenza di riferimento
     parser.add_argument(
-        "--basenote", default="440", type=note_name_or_frequency, required=True,
+        "--basenote", default="C4", type=note_name_or_frequency,
         help="Nota di riferimento (es. 'A4', 'F#2', 'Ab3') o frequenza in Hz"
     )
 
