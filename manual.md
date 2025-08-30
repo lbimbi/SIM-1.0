@@ -181,7 +181,7 @@ Opzioni di confronto:
 
 #### Sistema Danielou
 ```
---danielou [a,b,c]  # Sottoinsieme predefinito se omesso; con a,b,c genera un singolo rapporto (default: 0,0,1)
+--danielou a,b,c    # Specifica una terna di esponenti (a,b,c). Ripeti l'opzione per più terne.
 --danielou-all      # Griglia completa (fino a 53 rapporti)
 ```
 
@@ -248,33 +248,28 @@ python3 sim.py --natural 3 3 output_natural
 
 Dove `c` è usato per la riduzione all'ottava.
 
-**Tre modalità:**
+**Modalità disponibili:**
 
-1. **Sottoinsieme (default):**
-   - Tonica (1/1)
-   - Asse delle quinte (a=0, b=-5..5)
-   - Tre terze minori armoniche successive
-   - Tre seste maggiori armoniche successive
-
-2. **Griglia completa (`--danielou-all`):**
+1. **Griglia completa (`--danielou-all`):**
    - `a -> [-3, 3]`
    - `b -> [-5, 5]`
    - Fino a 53 rapporti dopo riduzione
 
-3. **Esponenti espliciti (`--danielou a,b,c`):**
+2. **Esponenti espliciti (`--danielou a,b,c`):**
    - Specifica i tre esponenti (a,b,c) per generare un singolo rapporto
+   - Puoi ripetere l'opzione più volte per generare più rapporti
    - Compatibile con `--no-reduce` per disattivare la riduzione in ottava
 
 **Esempio:**
 ```bash
-# Sottoinsieme
-python3 sim.py --danielou output_danielou
-
 # Griglia completa
 python3 sim.py --danielou-all output_danielou_full
 
 # Esponenti espliciti: a=1, b=2, c=-1
 python3 sim.py --danielou 1,2,-1 output_danielou_exp
+
+# Più terne
+python3 sim.py --danielou 0,1,0 --danielou -1,2,0 output_danielou_multi
 ```
 
 Nota su esponenti negativi: se il primo valore (a) è negativo, usa la sintassi con "=" e virgolette per evitare che la shell/argparse lo interpreti come un'opzione.
