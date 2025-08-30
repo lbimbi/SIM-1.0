@@ -1,10 +1,10 @@
 # SIM - Sistemi intonazione musicale
 
-## Documentazione Completa v1.2
+## Documentazione Completa v1.3
 
 **Autore:** LUCA BIMBI  
 **Data:** 30 Agosto 2025  
-**Versione:** 1.2
+**Versione:** 1.3
 
 ---
 
@@ -29,6 +29,8 @@
 per la costruzione di tabelle di intonazione musicale. Il programma è particolarmente
 utile per compositori e ricercatori che lavorano con sistemi di intonazione non standard
 in Csound attraverso l'opcode `cpstun`.
+E' un tributo a Walter Branchi e il suo libro "I numeri della musica", ma anche un tributo 
+alla SIM (Società di Informatica Musicale) formata a Roma negli anni 1980 da Francesco Galante e altri.
 
 ### Scopo Principale
 
@@ -143,6 +145,7 @@ Opzioni di confronto:
 | `-v, --version` | - | - | Visualizza versione del programma |
 | `--export-tun` | flag | - | Esporta file .tun con 128 note MIDI |
 | `--no-reduce` | flag | - | Non riduce i rapporti all'ottava |
+| `--span`, `--ambitus` | int | 1 | Numero di ripetizioni dell'intervallo base del sistema (es.: 2 per coprire due volte l'intervallo) |
 | `--compare-fund` | nota/Hz | basenote | Fondamentale per confronto serie armonica e ancoraggio 12TET |
 | `--compare-tet-align` | enum | "same" | Allineamento 12TET: `same` dalla fondamentale o `nearest` nota più vicina |
 | `--subharm-fund` | nota/Hz | A4 (diapason) | Fondamentale per serie subarmonica |
@@ -346,6 +349,17 @@ python3 sim.py \
     --diapason 440 \
     --et 12 1200 \
     output_12tet
+```
+
+### Esempio 1b: 12-TET ripetuto su 2 ottave (span)
+```bash
+python3 sim.py \
+    --basekey 60 \
+    --basenote A4 \
+    --diapason 440 \
+    --et 12 1200 \
+    --span 2 \
+    output_12tet_2oct
 ```
 
 ### Esempio 2: Scala Pitagorica (12 quinte)

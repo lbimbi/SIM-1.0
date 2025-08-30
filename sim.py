@@ -6,7 +6,7 @@ Copyright (c) 2025 Luca Bimbi
 Distribuito secondo la licenza MIT - vedi il file LICENSE per i dettagli
 
 Nome programma: SIM - Sistemi intonazione musicale
-Versione: 1.2
+Versione: 1.3
 Autore: LUCA BIMBI
 Data: 2025-08-30
 
@@ -113,11 +113,12 @@ import math
 from fractions import Fraction
 import re
 import os
+import shutil
 from typing import Iterable
 
 # Metadati di modulo
 __program_name__ = "SIM"
-__version__ = "1.2"
+__version__ = "1.3"
 __author__ = "LUCA BIMBI"
 __date__ = "2025-08-30"
 
@@ -187,6 +188,32 @@ def normalize_ratios(ratios: Iterable[float | Fraction], reduce_octave: bool = T
             processed.append(v_float)
     processed.sort()
     return processed
+
+
+def repeat_ratios(ratios: list[float], span: int, interval_factor: float) -> list[float]:
+    """Ripete la serie di rapporti su un certo ambitus moltiplicando per potenze dell'intervallo.
+
+    - ratios: lista base di rapporti (preferibilmente ordinata crescente)
+    - span: numero di ripetizioni dell'intervallo (>=1). span=1 ritorna la lista originale.
+    - interval_factor: fattore dell'intervallo di ripetizione (es. 2.0 per ottava, oppure exp(cents/...) per ET).
+
+    Restituisce una nuova lista di float con le ripetizioni concatenate mantenendo l'ordine per-blocco.
+    """
+    try:
+        s = int(span)
+    except Exception:
+        s = 1
+    if s <= 1:
+        return list(ratios)
+    out: list[float] = []
+    # Gestione di valori non positivi nell'intervallo: in tal caso non ripetiamo
+    if not isinstance(interval_factor, (int, float)) or interval_factor <= 0:
+        return list(ratios)
+    for k in range(s):
+        factor_k = interval_factor ** k
+        for r in ratios:
+            out.append(float(r) * factor_k)
+    return out
 
 
 def pow_fraction(fr: Fraction | float, k: int) -> Fraction | float:
@@ -818,6 +845,62 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
         print(f"Errore export Excel _compare.xlsx: {e}")
 
 
+def print_step_hz_table(ratios: list[float], basenote_hz: float) -> None:
+    """Stampa su console una tabella multi-colonna con coppie Step/Hz che riempiono lo schermo.
+
+    - Step numerato da 1.
+    - Hz con due decimali.
+    - Disposizione a più colonne in base alla larghezza del terminale.
+    """
+    # Prepara dati Step/Hz
+    pairs: list[tuple[str, str]] = []
+    for i, r in enumerate(ratios):
+        hz = basenote_hz * float(r)
+        pairs.append((str(i + 1), f"{hz:.2f}"))
+
+    # Calcola larghezze per formattazione
+    step_w = max(len("Step"), max((len(p[0]) for p in pairs), default=1))
+    hz_w = max(len("Hz"), max((len(p[1]) for p in pairs), default=1))
+    cell_w = step_w + 1 + hz_w  # "Step" + spazio + "Hz"
+    gap = 3  # spazi tra le celle
+
+    # Determina larghezza terminale
+    try:
+        term_w = shutil.get_terminal_size(fallback=(80, 24)).columns
+    except Exception:
+        term_w = 80
+
+    # Numero colonne che entrano nella larghezza disponibile
+    if cell_w >= term_w:
+        cols = 1
+    else:
+        # massimo cols tale che cols*cell_w + (cols-1)*gap <= term_w
+        cols = max(1, (term_w + gap) // (cell_w + gap))
+
+    n = len(pairs)
+    header_cell = "Step".ljust(step_w) + " " + "Hz".ljust(hz_w)
+    if n == 0:
+        print(header_cell)
+        return
+
+    rows_count = math.ceil(n / cols)
+
+    # Stampa intestazione ripetuta per ogni colonna
+    print((" " * gap).join([header_cell] * cols))
+
+    # Stampa righe in ordine colonna-major per bilanciare l'altezza
+    for r in range(rows_count):
+        line_cells: list[str] = []
+        for c in range(cols):
+            idx = c * rows_count + r
+            if idx < n:
+                s, h = pairs[idx]
+                cell = s.rjust(step_w) + " " + h.rjust(hz_w)
+                line_cells.append(cell)
+        if line_cells:
+            print((" " * gap).join(line_cells))
+
+
 def main():
     """Punto di ingresso CLI.
 
@@ -894,6 +977,11 @@ def main():
         "--no-reduce", action="store_true",
         help="Non ridurre i rapporti all'interno dell'ottava (default: riduci)",
     )
+    # Ambitus/Span di ripetizione dell'intervallo generato
+    parser.add_argument(
+        "--span", "--ambitus", dest="span", type=int, default=1,
+        help="Numero di ripetizioni dell'intervallo base del sistema (default: 1). Es.: --span 3"
+    )
     parser.add_argument(
         "--export-tun", action="store_true",
         help="Esporta anche un file .tun (AnaMark TUN) con [Exact Tuning] su 128 note",
@@ -927,6 +1015,11 @@ def main():
     if isinstance(args.basenote, (int, float)) and args.basenote < 0:
         print("Nota di riferimento non valida.")
         return
+
+    # Validazione span
+    if args.span is None or args.span < 1:
+        print("Valore non valido per --span/--ambitus: impostato a 1.")
+        args.span = 1
 
     # Determina la frequenza di base in Hz: se float, è già Hz; altrimenti sarebbe da convertire
     if isinstance(args.basenote, float):
@@ -973,40 +1066,39 @@ def main():
             print("A_MAX e B_MAX devono essere >= 0 per --natural.")
             return
         ratios = build_natural_ratios(a_max, b_max, reduce_octave=(not args.no_reduce))
-        for i, r in enumerate(ratios):
-            freq = basenote * float(r)
-            print(f"{freq:.2f} Hz  Step {i+1}")
-        fnum, existed = write_cpstun_table(args.output_file, ratios, args.basekey, basenote)
+        # Applica ambitus/span su ottave
+        ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
+        print_step_hz_table(ratios_spanned, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
         export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
-        export_system_tables(export_base, ratios, args.basekey, basenote)
+        export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
         try:
             diapason_hz = float(args.diapason)
         except TypeError:
             diapason_hz = 440.0
-        export_comparison_tables(export_base, ratios, args.basekey, basenote, diapason_hz,
+        export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
                                  compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align,
                                  subharm_fund_hz=subharm_fund_hz)
         if args.export_tun:
-            write_tun_file(export_base, ratios, args.basekey, basenote)
+            write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
         return
 
     # Sistema Danielou: esponenti opzionali via --danielou oppure griglia completa via --danielou-all
     if args.danielou_all:
         ratios = build_danielou_ratios(full_grid=True, reduce_octave=(not args.no_reduce))
-        for i, r in enumerate(ratios):
-            freq = basenote * float(r)
-            print(f"{freq:.2f} Hz  Step {i+1}")
-        fnum, existed = write_cpstun_table(args.output_file, ratios, args.basekey, basenote)
+        ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
+        print_step_hz_table(ratios_spanned, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
         export_base = args.output_file if (not existed or fnum <= 1) else f"{args.output_file}_{fnum}"
-        export_system_tables(export_base, ratios, args.basekey, basenote)
+        export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
         try:
             diapason_hz = float(args.diapason)
         except TypeError:
             diapason_hz = 440.0
-        export_comparison_tables(export_base, ratios, args.basekey, basenote, diapason_hz,
+        export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
                                  compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
         if args.export_tun:
-            write_tun_file(export_base, ratios, args.basekey, basenote)
+            write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
         return
 
     if args.danielou is not None:
@@ -1016,20 +1108,19 @@ def main():
         else:
             a, b, c = args.danielou
             ratios = danielou_from_exponents(a, b, c, reduce_octave=(not args.no_reduce))
-        for i, r in enumerate(ratios):
-            freq = basenote * float(r)
-            print(f"{freq:.2f} Hz  Step {i+1}")
-        fnum, existed = write_cpstun_table(args.output_file, ratios, args.basekey, basenote)
+        ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
+        print_step_hz_table(ratios_spanned, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
         export_base = args.output_file if (not existed or fnum <= 1) else f"{args.output_file}_{fnum}"
-        export_system_tables(export_base, ratios, args.basekey, basenote)
+        export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
         try:
             diapason_hz = float(args.diapason)
         except TypeError:
             diapason_hz = 440.0
-        export_comparison_tables(export_base, ratios, args.basekey, basenote, diapason_hz,
+        export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
                                  compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
         if args.export_tun:
-            write_tun_file(export_base, ratios, args.basekey, basenote)
+            write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
         return
 
     # Sistema geometrico: se specificato, priorità rispetto a -et
@@ -1080,25 +1171,26 @@ def main():
             # riduzione all'ottava di default
             r_reduced = reduce_to_octave(r) if not args.no_reduce else r
             r_value = float(r_reduced) if isinstance(r_reduced, Fraction) else float(r_reduced)
-            freq = basenote * r_value
             ratios.append(r_value)
-            print(f"{freq:.2f} Hz  Step {i+1}")
-        fnum, existed = write_cpstun_table(args.output_file, ratios, args.basekey, basenote)
+        # Applica span su ottave
+        ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
+        print_step_hz_table(ratios_spanned, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
         export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
-        export_system_tables(export_base, ratios, args.basekey, basenote)
+        export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
         try:
             diapason_hz = float(args.diapason)
         except TypeError:
             diapason_hz = 440.0
-        export_comparison_tables(export_base, ratios, args.basekey, basenote, diapason_hz,
+        export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
                                  compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
         if args.export_tun:
-            write_tun_file(export_base, ratios, args.basekey, basenote)
+            write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
         return
 
     # Validazione presenza -et
     if not args.et:
-        print("Temperamento equabile non specificato. Usa -et indice cents")
+        print("Temperamento equabile non specificato. Usa --et indice cents")
         return
 
     index, cents = args.et
@@ -1123,22 +1215,24 @@ def main():
         print("errore di divisione per zero")
         return
 
-    ratios: list[float] = []
+    base_ratios: list[float] = []
     for i in range(index):
         r_value = float(ratio ** i)
-        freq = basenote * r_value
-        print(f"{freq:.2f} Hz  Step {i+1}")
-        ratios.append(r_value)
-    fnum, existed = write_cpstun_table(args.output_file, ratios, args.basekey, basenote)
+        base_ratios.append(r_value)
+    # Intervallo di ripetizione per ET: exp(cents/ELLIS_CONVERSION_FACTOR)
+    interval_factor = math.exp((cents / ELLIS_CONVERSION_FACTOR))
+    ratios_spanned = repeat_ratios(base_ratios, args.span, interval_factor)
+    print_step_hz_table(ratios_spanned, basenote)
+    fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
     export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
-    export_system_tables(export_base, ratios, args.basekey, basenote)
+    export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
     try:
         diapason_hz = float(args.diapason)
     except TypeError:
         diapason_hz = 440.0
-    export_comparison_tables(export_base, ratios, args.basekey, basenote, diapason_hz,
+    export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
                              compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
     if args.export_tun:
-        write_tun_file(export_base, ratios, args.basekey, basenote)
+        write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
 if __name__ == "__main__":
     main()
