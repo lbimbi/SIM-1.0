@@ -10,8 +10,9 @@ Caratteristiche principali:
 - Sistema geometrico su generatore con riduzione all’ottava opzionale;
 - Sistema naturale (4:5:6) e sistema Danielou (sottoinsieme, griglia completa o esponenti a,b,c);
 - Esportazione tabelle `.txt`/`.xlsx`, file `.csd` con tabella cpstun (GEN -2), e `.tun`.
-- Confronto configurabile (12TET, armonica e subarmonica): `--compare-fund` per la fondamentale, `--compare-tet-align {same,nearest}` per l’allineamento, `--subharm-fund` per fissare la fondamentale della serie subarmonica (default: A4 del diapason).
+- Confronto configurabile (12TET, armonica e subarmonica): `--compare-fund` (default=basenote; può essere usato senza argomento), `--compare-tet-align {same,nearest}`, `--subharm-fund` (default: A5). Colonne TET_Hz e TET_Note in ogni riga; ordinamento crescente per tutte le colonne, cut‑off: armoniche ≤ 10 kHz e subarmoniche ≥ 16 Hz; evidenziazione < 17 Hz solo nei TXT (in Excel restano i riempimenti colore). Flag `--midi-truncate` per troncamento al range MIDI 0..127.
 - File `.txt` con colonne allineate a larghezza fissa per etichette e valori.
+- Le tabelle cpstun nel file `.csd` sono scritte con i ratio in ordine crescente.
 
 Esempio rapido (Danielou con esponenti):
 ```bash

@@ -6,7 +6,7 @@ Copyright (c) 2025 Luca Bimbi
 Distribuito secondo la licenza MIT - vedi il file LICENSE per i dettagli
 
 Nome programma: SIM - Sistemi intonazione musicale
-Versione: 1.3
+Versione: 1.5
 Autore: LUCA BIMBI
 Data: 2025-08-30
 
@@ -55,7 +55,7 @@ Input e parametri principali
 
 Note su frazioni e cents
 ------------------------
-- Se per -et vengono passati i cents come frazione razionale (Fraction), questa viene convertita in cents
+- Se per --et vengono passati i cents come frazione razionale (Fraction), questa viene convertita in cents
   tramite il logaritmo naturale secondo la scala di Ellis.
 - Conversioni disponibili: ratio -> cents (fraction_to_cents) e cents -> ratio approssimato (cents_to_fraction).
 
@@ -118,7 +118,7 @@ from typing import Iterable
 
 # Metadati di modulo
 __program_name__ = "SIM"
-__version__ = "1.3"
+__version__ = "1.5"
 __author__ = "LUCA BIMBI"
 __date__ = "2025-08-30"
 
@@ -240,18 +240,45 @@ def build_natural_ratios(a_max: int, b_max: int, reduce_octave: bool = True) -> 
 
 def build_danielou_ratios(full_grid: bool = False, reduce_octave: bool = True) -> list[float]:
     """Genera rapporti del sistema Danielou.
-    Formula: ((6/5)^a)*(3/2)^b*(2^c), con c per riduzione in ottava.
-    - Se full_grid=True: produce 53 rapporti (dopo riduzione nell'ottava) come da richiesta.
-    - Se full_grid=False: sottoinsieme: tonic (1/1), asse quinte (a=0, b=-5..5),
-      tre terze minori armoniche successive ((6/5)^1...^3) e tre seste maggiori armoniche ((5/3)^1...^3).
+    Formula: ((6/5)^a) * (3/2)^b * (2^c), con c usato per la riduzione nell'ottava.
+
+    Modalità:
+    - full_grid=True: genera esattamente i 53 gradi di Danielou seguendo la struttura delle serie descritta:
+      a ∈ [-3..3] e, per ciascun a, un numero di quinte ascendenti/descendenti così definito:
+        • a = 0 (serie base): 5 quinte discendenti e 5 ascendenti → b ∈ [-5..5]
+        • a = 1 (6/5): 3 quinte discendenti e 4 ascendenti → b ∈ [-3..4]
+        • a = -1 (5/3): 5 quinte discendenti e 3 ascendenti → b ∈ [-5..3]
+        • a = 2 e a = -2: 4 quinte discendenti e 4 ascendenti → b ∈ [-4..4]
+        • a = 3 (216/125): solo 4 quinte discendenti (più il grado base) → b ∈ [-4..0]
+        • a = -3 (125/108): solo 4 quinte ascendenti (più il grado base) → b ∈ [0..4]
+      Tutti i rapporti sono ridotti nell'ottava [1,2), deduplicati e ordinati, poi si prende 1/1 allo step 0,
+      i successivi 51 valori e si aggiunge 2/1 come ultimo grado, per un totale di 53.
+    - full_grid=False: genera un sottoinsieme dimostrativo (tonica, asse delle quinte, 6/5^k e (5/3)^k per k=1..3).
     """
     six_over_five: Fraction = Fraction(6, 5)
     three_over_two: Fraction = Fraction(3, 2)
     vals: list[Fraction | float] = []
+
     if full_grid:
-        # Griglia ampia e successivo pruning a 53 dopo riduzione
-        for a in range(-3, 4):
-            for b in range(-5, 6):
+        # Mappa "a" → (desc_quinte, asc_quinte)
+        series_spec: dict[int, tuple[int, int]] = {
+            0: (5, 5),
+            1: (3, 4),
+            -1: (5, 3),
+            2: (4, 4),
+            -2: (4, 4),
+            3: (4, 0),
+            -3: (0, 4),
+        }
+        for a, (desc_n, asc_n) in series_spec.items():
+            # b negativi (quinte discendenti): -desc_n..-1
+            for b in range(-desc_n, 0):
+                r = pow_fraction(six_over_five, a) * pow_fraction(three_over_two, b)
+                vals.append(r)
+            # b=0 (centro serie)
+            vals.append(pow_fraction(six_over_five, a))
+            # b positivi (quinte ascendenti): 1..asc_n
+            for b in range(1, asc_n + 1):
                 r = pow_fraction(six_over_five, a) * pow_fraction(three_over_two, b)
                 vals.append(r)
     else:
@@ -266,9 +293,32 @@ def build_danielou_ratios(full_grid: bool = False, reduce_octave: bool = True) -
         five_over_three: Fraction = Fraction(5, 3)
         for k in range(1, 4):
             vals.append(pow_fraction(five_over_three, k))
+
     normalized = normalize_ratios(vals, reduce_octave=reduce_octave)
-    if full_grid and reduce_octave and len(normalized) > 53:
-        # Mantieni le 53 altezze più basse ordinate
+
+    if full_grid and reduce_octave:
+        # Costruisci lista finale di 53 gradi: 1/1 + 51 valori successivi + 2/1
+        base = list(normalized)
+        # garantisci 1/1 in testa
+        if not base or abs(base[0] - 1.0) > RATIO_EPS:
+            base.append(1.0)
+            base = sorted(base)
+        # prendi i primi 52 in [1,2)
+        base_52 = base[:52]
+        # dedup fine
+        base_52_unique: list[float] = []
+        for v in base_52:
+            if not base_52_unique or abs(v - base_52_unique[-1]) > RATIO_EPS:
+                base_52_unique.append(v)
+        # se meno di 52, estendi attingendo dagli elementi rimanenti (già ordinati)
+        if len(base_52_unique) < 52 and len(base) > len(base_52_unique):
+            for v in base[len(base_52_unique):]:
+                if all(abs(v - u) > RATIO_EPS for u in base_52_unique):
+                    base_52_unique.append(v)
+                    if len(base_52_unique) >= 52:
+                        break
+        normalized = base_52_unique[:52] + [2.0]
+    elif full_grid and reduce_octave and len(normalized) > 53:
         normalized = normalized[:53]
     return normalized
 
@@ -472,6 +522,50 @@ def write_frequency_table(output_base: str, rows: list[tuple[int, float]]) -> No
         print(f"Errore scrittura file: {e}")
 
 
+def ensure_midi_fit(ratios: list[float], basekey: int, prefer_truncate: bool) -> tuple[list[float], int]:
+    """Ensures the mapping of 'ratios' starting at 'basekey' fits the MIDI range [0..127].
+
+    - If prefer_truncate=False (default behavior): try to adapt the effective basekey so the whole series fits.
+      If impossible (len(ratios) > 128), truncate to 128 and print a WARNING.
+    - If prefer_truncate=True: clamp basekey to [0,127] and truncate the series to fit.
+
+    Returns: (ratios_eff, basekey_eff)
+    """
+    n = len(ratios)
+    # Clamp provided basekey to a reasonable integer
+    try:
+        bk = int(basekey)
+    except Exception:
+        bk = 0
+    # If too many notes, we can only keep 128 max
+    if n > 128:
+        if not prefer_truncate:
+            print(f"WARNING: numero di passi ({n}) eccede 128. Adattamento impossibile: verranno mantenuti solo i primi 128 e basekey verrà adattata.")
+            prefer_truncate = True
+        n = 128
+        ratios = list(ratios[:n])
+    if prefer_truncate:
+        # Clamp basekey, then truncate window to fit
+        bk = max(0, min(127, bk))
+        max_len = 128 - bk
+        if len(ratios) > max_len:
+            print(f"WARNING: serie eccede il limite MIDI con basekey={bk}. Verranno troncati {len(ratios)-max_len} passi oltre la nota 127.")
+            ratios = list(ratios[:max_len])
+        return ratios, bk
+    else:
+        # Adapt basekey so that bk in [0, 127 - (n-1)]
+        allowed_min = 0
+        allowed_max = 127 - (n - 1)
+        if allowed_max < allowed_min:
+            # Should not happen because n<=128 here, but guard anyway
+            allowed_max = allowed_min
+        bk_eff = bk
+        if bk < allowed_min or bk > allowed_max:
+            # prefer to keep close to user value but clamp into range
+            bk_eff = max(allowed_min, min(allowed_max, bk))
+            print(f"WARNING: basekey adattata da {bk} a {bk_eff} per includere tutti i {n} passi entro MIDI 0..127.")
+        return ratios, bk_eff
+
 def write_cpstun_table(output_base: str, ratios: list[float], basekey: int, basefrequency: float) -> tuple[int, bool]:
     """Crea o appende una tabella cpstun in un file Csound .csd.
 
@@ -520,12 +614,18 @@ def write_cpstun_table(output_base: str, ratios: list[float], basekey: int, base
     f_max = parse_file(csd_path)
     fnum = (f_max or 0) + 1
 
+    # prima di scrivere, ordina i rapporti in ordine crescente (requisito utente)
+    try:
+        ratios_sorted = sorted(float(r) for r in ratios)
+    except Exception:
+        ratios_sorted = [float(r) for r in ratios]
+
     # determina header cpstun
-    numgrades = int(len(ratios))
+    numgrades = int(len(ratios_sorted))
     # intervallo di ripetizione: 2.0 se tutti i rapporti sono nell'ottava [1,2), altrimenti 0.0
     try:
-        rmin = min(float(r) for r in ratios) if ratios else 1.0
-        rmax = max(float(r) for r in ratios) if ratios else 1.0
+        rmin = min(ratios_sorted) if ratios_sorted else 1.0
+        rmax = max(ratios_sorted) if ratios_sorted else 1.0
     except Exception:
         rmin, rmax = 1.0, 1.0
     interval = 2.0 if (rmin >= 1.0 and rmax < 2.0) else 0.0
@@ -536,7 +636,7 @@ def write_cpstun_table(output_base: str, ratios: list[float], basekey: int, base
     data_list.append(f"{float(interval):.10g}")    # interval
     data_list.append(f"{float(basefrequency):.10g}")  # basefreq
     data_list.append(str(int(basekey)))             # basekey
-    data_list.extend(f"{float(r):.10f}" for r in ratios)
+    data_list.extend(f"{r:.10f}" for r in ratios_sorted)
 
     # dimensione tabella = numero di dati forniti a GEN -2
     size = len(data_list)
@@ -647,19 +747,28 @@ def export_system_tables(output_base: str, ratios: list[float], basekey: int, ba
     Crea:
     - {output_base}_system.txt (colonne allineate a larghezza fissa)
     - {output_base}_system.xlsx (se openpyxl disponibile)
+
+    Requisito: gli intervalli del sistema custom sono ordinati per Hz crescente.
     """
+    # Prepara righe calcolando Hz e mantenendo riferimento a step originale
+    computed = []  # (hz, step, midi, ratio)
+    for i, r in enumerate(ratios):
+        midi = basekey + i
+        hz = basenote_hz * float(r)
+        computed.append((hz, i, midi, float(r)))
+    # Ordina per Hz crescente
+    computed.sort(key=lambda t: t[0])
+
     # Testo - costruzione tabella a colonne allineate
     txt_path = f"{output_base}_system.txt"
     try:
         headers = ["Step", "MIDI", "Ratio", "Hz"]
         rows = []
-        for i, r in enumerate(ratios):
-            midi = basekey + i
-            hz = basenote_hz * float(r)
+        for row_idx, (hz, i, midi, r) in enumerate(computed):
             rows.append([
-                str(i),
-                str(midi),
-                f"{float(r):.10f}",
+                str(row_idx),
+                str(basekey + row_idx),
+                f"{r:.10f}",
                 f"{hz:.6f}",
             ])
         # Calcola larghezze massime per colonna
@@ -692,10 +801,8 @@ def export_system_tables(output_base: str, ratios: list[float], basekey: int, ba
         for cell in ws[1]:
             cell.font = Font(bold=True)
             cell.fill = header_fill
-        for i, r in enumerate(ratios):
-            midi = basekey + i
-            hz = basenote_hz * float(r)
-            ws.append([i, midi, float(r), hz])
+        for row_idx, (hz, i, midi, r) in enumerate(computed):
+            ws.append([row_idx, basekey + row_idx, r, hz])
         xlsx_path = f"{output_base}_system.xlsx"
         wb.save(xlsx_path)
         print(f"Esportato: {xlsx_path}")
@@ -713,7 +820,7 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
     Crea:
     - {output_base}_compare.txt
     - {output_base}_compare.xlsx (se openpyxl disponibile)
-    Colonne TXT: Step, MIDI, Ratio, Custom_Hz, Harmonic_Hz, DeltaHz_Harm, Subharm_Hz, DeltaHz_Sub, TET_Hz, DeltaHz_TET
+    Colonne TXT: Step, MIDI, Ratio, Custom_Hz, Harmonic_Hz, DeltaHz_Harm, Subharm_Hz, DeltaHz_Sub, TET_Hz, TET_Note, DeltaHz_TET
     In Excel abbiniamo valori vicini affiancandoli (Custom accanto a Harmonic/Subharmonic) e li coloriamo
     con colori distinti: Custom in rosso, Harmonic in verde, Subharm in giallo, TET in blu. Se |Delta| < 17 Hz
     tra Custom e Harmonic, evidenziamo entrambi in grassetto.
@@ -724,8 +831,28 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
     - tet_align: "same" (il 12TET parte esattamente da compare_fund_hz) oppure "nearest"
       (per ogni Custom si prende la nota 12TET più vicina nel reticolo ancorato a compare_fund_hz).
     - subharm_fund_hz: fondamentale per la serie subarmonica. Se None, si usa A4 del diapason corrente (es. 440 Hz).
+
+    Requisiti aggiunti:
+    - Ordina gli intervalli del sistema custom per Hz crescente nelle comparazioni.
+    - Le armoniche non devono superare 10 kHz e le subarmoniche non devono scendere sotto 16 Hz.
     """
     proximity_thr = 17.0  # Hz per considerare "vicini"
+    MAX_HARM_HZ = 10000.0
+    MIN_SUB_HZ = 16.0
+
+    # Conversione freq -> nome nota 12TET rispetto al diapason (A4 = diapason_hz)
+    def freq_to_note_name(freq: float, a4_hz: float) -> str:
+        try:
+            if not (freq > 0 and a4_hz > 0):
+                return ""
+            midi = int(round(69 + 12.0 * math.log2(freq / a4_hz)))
+        except Exception:
+            return ""
+        midi = max(0, min(127, midi))
+        names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        name = names[midi % 12]
+        octave = (midi // 12) - 1
+        return f"{name}{octave}"
 
     base_cmp = compare_fund_hz if compare_fund_hz is not None else basenote_hz
     sub_base = (
@@ -742,6 +869,82 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
         # default: stesso indice i dalla fondamentale
         return base_cmp * (2.0 ** (step_i / 12.0))
 
+    # Prepara elenco calcolato e ordina per Hz crescente
+    computed = []  # (custom_hz, i, midi, ratio)
+    for i, r in enumerate(ratios):
+        midi = basekey + i
+        custom_hz = basenote_hz * float(r)
+        computed.append((custom_hz, i, midi, float(r)))
+    computed.sort(key=lambda t: t[0])
+
+    # Costruisci sequenze crescenti per colonne di confronto
+    # Custom già in ordine crescente in 'computed'
+    custom_list = computed  # alias
+    n_rows = len(custom_list)
+
+    # Serie armonica crescente (1,2,3,...) fino a 10 kHz
+    harm_vals: list[float] = []
+    n = 1
+    while True:
+        val = base_cmp * n
+        if val > MAX_HARM_HZ:
+            break
+        harm_vals.append(val)
+        n += 1
+
+    # Serie subarmonica: dal valore più basso >= MIN_SUB_HZ fino al generatore (sub_base)
+    sub_desc: list[float] = []  # decrescente mentre n cresce
+    m = 1
+    while True:
+        val = sub_base / m
+        if val < MIN_SUB_HZ:
+            break
+        sub_desc.append(val)
+        m += 1
+    sub_vals = list(reversed(sub_desc))  # crescente dai più bassi fino al generatore
+
+    # 12TET crescente: trova il primo grado >= min custom e poi sale a semitoni
+    min_custom = custom_list[0][0] if n_rows > 0 else base_cmp
+    # calcola offset in semitoni relativo a base_cmp
+    if min_custom > 0 and base_cmp > 0:
+        offset = 12.0 * math.log2(min_custom / base_cmp)
+    else:
+        offset = 0.0
+    if tet_align == "nearest":
+        start_n = int(round(offset))
+    else:
+        start_n = int(math.ceil(offset))
+    tet_vals: list[float] = []
+    for k in range(max(n_rows, 0)):
+        tet_vals.append(base_cmp * (2.0 ** ((start_n + k) / 12.0)))
+
+    # Applica cutoff alle subarmoniche: escludi tutte quelle sotto la prima Custom (oltre a 16 Hz)
+    # Soglia = max(MIN_SUB_HZ, min_custom)
+    cutoff_sub = max(MIN_SUB_HZ, min_custom)
+    sub_vals = [v for v in sub_vals if v >= cutoff_sub]
+
+    # Funzione di allineamento: distribuisce una sequenza crescente nelle finestre [c_i, c_{i+1})
+    def align_sequence(seq: list[float], customs: list[float]) -> list[float | None]:
+        out: list[float | None] = [None] * len(customs)
+        p = 0
+        for i in range(len(customs)):
+            low = customs[i]
+            high = customs[i + 1] if i + 1 < len(customs) else float('inf')
+            if p < len(seq) and low <= seq[p] < high:
+                out[i] = seq[p]
+                p += 1
+            else:
+                out[i] = None
+        return out
+
+    # Costruiamo liste Custom in Hz (crescente)
+    custom_hz_list = [c[0] for c in custom_list]
+
+    # Prepara sequenze allineate
+    harm_aligned = align_sequence(harm_vals, custom_hz_list)
+    sub_aligned = align_sequence(sub_vals, custom_hz_list)
+    tet_aligned = align_sequence(tet_vals, custom_hz_list)
+
     # Testo (mettiamo Custom e Harmonic/Subharmonic affiancati) con colonne allineate a larghezza fissa
     txt_path = f"{output_base}_compare.txt"
     try:
@@ -749,30 +952,56 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
             "Step", "MIDI", "Ratio",
             "Custom_Hz", "Harmonic_Hz", "DeltaHz_Harm",
             "Subharm_Hz", "DeltaHz_Sub",
-            "TET_Hz", "DeltaHz_TET",
+            "TET_Hz", "TET_Note", "DeltaHz_TET",
         ]
         rows: list[list[str]] = []
-        for i, r in enumerate(ratios):
-            midi = basekey + i
-            custom_hz = basenote_hz * float(r)
-            harm_hz = base_cmp * (i + 1)
-            sub_hz = sub_base / (i + 1)
-            tet_hz = tet_from_base(i, custom_hz)
-            d_tet = custom_hz - tet_hz
-            d_har = custom_hz - harm_hz
-            d_sub = custom_hz - sub_hz
-            approx = "≈" if abs(d_har) < proximity_thr else ""
+        for row_i, (custom_hz, i, midi, r) in enumerate(custom_list):
+            harm_val = harm_aligned[row_i]
+            sub_val = sub_aligned[row_i]
+            # 12TET per-row assignment: always nearest note anchored to base_cmp
+            n = round(12.0 * math.log2(custom_hz / base_cmp)) if (custom_hz > 0 and base_cmp > 0) else 0
+            tet_val_row = base_cmp * (2.0 ** (n / 12.0))
+
+            # Harmonic
+            harm_str = ""
+            d_har_str = ""
+            approx = ""
+            if harm_val is not None:
+                d_har = custom_hz - harm_val
+                harm_str = f"{harm_val:.6f}"
+                d_har_str = f"{d_har:.6f}"
+                approx = "≈" if abs(d_har) < proximity_thr else ""
+
+            # Subharmonic
+            sub_str = ""
+            d_sub_str = ""
+            if sub_val is not None:
+                d_sub = custom_hz - sub_val
+                sub_str = f"{sub_val:.6f}"
+                d_sub_str = f"{d_sub:.6f}"
+
+            # 12TET
+            tet_note = ""
+            d_tet_str = ""
+            tet_str = ""
+            if tet_val_row is not None and isinstance(tet_val_row, (int, float)) and math.isfinite(tet_val_row) and tet_val_row > 0:
+                tet_str = f"{tet_val_row:.6f}"
+                tet_note = freq_to_note_name(tet_val_row, diapason_hz)
+                d_tet = custom_hz - tet_val_row
+                d_tet_str = f"{d_tet:.6f}"
+
             rows.append([
-                str(i),
-                str(midi),
-                f"{float(r):.10f}",
+                str(row_i),
+                str(basekey + row_i),
+                f"{r:.10f}",
                 f"{custom_hz:.6f}{approx}",
-                f"{harm_hz:.6f}{approx}",
-                f"{d_har:.6f}",
-                f"{sub_hz:.6f}",
-                f"{d_sub:.6f}",
-                f"{tet_hz:.6f}",
-                f"{d_tet:.6f}",
+                f"{harm_str}{approx if harm_str else ''}",
+                f"{d_har_str}",
+                f"{sub_str}",
+                f"{d_sub_str}",
+                f"{tet_str}",
+                f"{tet_note}",
+                f"{d_tet_str}",
             ])
         # Calcola larghezze massime per colonna
         widths = [len(h) for h in headers]
@@ -801,7 +1030,7 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
             "Step", "MIDI", "Ratio",
             "Custom_Hz", "Harmonic_Hz", "|DeltaHz_Harm|",
             "Subharm_Hz", "|DeltaHz_Sub|",
-            "TET_Hz", "|DeltaHz_TET|",
+            "TET_Hz", "TET_Note", "|DeltaHz_TET|",
         ]
         ws.append(headers)
         header_fill = PatternFill(start_color="FFCCE5FF", end_color="FFCCE5FF", fill_type="solid")
@@ -815,27 +1044,47 @@ def export_comparison_tables(output_base: str, ratios: list[float], basekey: int
         fill_sub = PatternFill(start_color="FFFFFFCC", end_color="FFFFFFCC", fill_type="solid")      # giallo chiaro
         fill_tet = PatternFill(start_color="FFCCE5FF", end_color="FFCCE5FF", fill_type="solid")      # blu chiaro
 
-        for i, r in enumerate(ratios):
-            midi = basekey + i
-            custom_hz = basenote_hz * float(r)
-            harm_hz = base_cmp * (i + 1)
-            sub_hz = sub_base / (i + 1)
-            tet_hz = tet_from_base(i, custom_hz)
-            d_tet = custom_hz - tet_hz
-            d_har = custom_hz - harm_hz
-            d_sub = custom_hz - sub_hz
-            ws.append([i, midi, float(r), custom_hz, harm_hz, abs(d_har), sub_hz, abs(d_sub), tet_hz, abs(d_tet)])
+        for row_i, (custom_hz, i, midi, r) in enumerate(custom_list):
+            harm_val = harm_aligned[row_i]
+            sub_val = sub_aligned[row_i]
+            # 12TET per-row assignment: always nearest note anchored to base_cmp (same logic as TXT)
+            n = round(12.0 * math.log2(custom_hz / base_cmp)) if (custom_hz > 0 and base_cmp > 0) else 0
+            tet_val_row = base_cmp * (2.0 ** (n / 12.0))
+
+            harm_cell = None
+            d_har_cell = None
+            is_close = False
+            if harm_val is not None:
+                d_har = custom_hz - harm_val
+                harm_cell = harm_val
+                d_har_cell = abs(d_har)
+                is_close = abs(d_har) < proximity_thr
+
+            sub_cell = None
+            d_sub_cell = None
+            if sub_val is not None:
+                d_sub = custom_hz - sub_val
+                sub_cell = sub_val
+                d_sub_cell = abs(d_sub)
+
+            tet_cell = None
+            tet_note = ""
+            d_tet_cell = None
+            if tet_val_row is not None and isinstance(tet_val_row, (int, float)) and math.isfinite(tet_val_row) and tet_val_row > 0:
+                tet_cell = tet_val_row
+                tet_note = freq_to_note_name(tet_val_row, diapason_hz)
+                d_tet_cell = abs(custom_hz - tet_val_row)
+
+            ws.append([row_i, basekey + row_i, r, custom_hz, harm_cell, d_har_cell, sub_cell, d_sub_cell, tet_cell, tet_note, d_tet_cell])
             row = ws.max_row
             # Applica colorazione per serie
             ws.cell(row=row, column=4).fill = fill_custom
             ws.cell(row=row, column=5).fill = fill_harm
             ws.cell(row=row, column=7).fill = fill_sub
             ws.cell(row=row, column=9).fill = fill_tet
-            # Evidenziazione di prossimità tra Custom e Harmonic
-            is_close = abs(d_har) < proximity_thr
-            if is_close:
-                ws.cell(row=row, column=4).font = Font(bold=True)
-                ws.cell(row=row, column=5).font = Font(bold=True)
+            ws.cell(row=row, column=10).fill = fill_tet
+            # Evidenziazione disabilitata nel formato Excel su richiesta utente:
+            # niente grassetto condizionale per prossimità (< 17 Hz).
         xlsx_path = f"{output_base}_compare.xlsx"
         wb.save(xlsx_path)
         print(f"Esportato: {xlsx_path}")
@@ -910,8 +1159,8 @@ def main():
     """
     parser = argparse.ArgumentParser(
         description=(
-            "Assistente software per i sistemi di intonazione musicali. "
-            "Generatore di tabelle/rapporti per cpstun in Csound e tabelle di comparazione con 12TET. "
+            "SIM. Assistente software per i sistemi di intonazione musicali. "
+            "Generatore di tabelle/rapporti per cpstun in Csound, file TUN e tabelle di comparazione con 12TET. "
             f"Versione {__version__}"
         ),
         epilog="Autore: LUCA BIMBI, Agosto 2025"
@@ -963,10 +1212,10 @@ def main():
     )
     # Sistema Danielou
     parser.add_argument(
-        "--danielou", nargs="?", type=parse_danielou_tuple, default=None, const=(0, 0, 1),
+        "--danielou", nargs="+", type=parse_danielou_tuple, default=None,
         help=(
-            "Sistema Danielou: opzionalmente specifica gli esponenti 'a,b,c' (es. 1,2,-1). "
-            "Se ometti gli esponenti, genera il sottoinsieme predefinito; usa --danielou-all per la griglia completa."
+            "Sistema Danielou (manuale): specifica una o più terne 'a,b,c' (es. 1,2,-1 0,0,0). "
+            "Genera solo i rapporti indicati. Usa --danielou-all per la griglia completa."
         )
     )
     parser.add_argument(
@@ -989,19 +1238,24 @@ def main():
 
     # Opzioni per il confronto (serie armonica, subarmonica e 12TET)
     parser.add_argument(
-        "--compare-fund", type=note_name_or_frequency, default=None,
-        help="Fondamentale per il confronto armonico (nota es. 'A4' o frequenza in Hz). Default: basenote"
+        "--compare-fund", nargs="?", type=note_name_or_frequency, default="basenote", const="basenote",
+        help="Fondamentale per il confronto armonico (nota es. 'A4' o frequenza in Hz). Default: basenote (se usato senza argomento prende basenote)"
     )
     parser.add_argument(
         "--compare-tet-align", choices=["same", "nearest"], default="same",
         help="Allineamento 12TET nel confronto: 'same' dalla fondamentale, 'nearest' nota 12TET più vicina alla Custom"
     )
     parser.add_argument(
-        "--subharm-fund", type=note_name_or_frequency, default=None,
-        help="Fondamentale per la serie subarmonica (nota es. 'A4' o frequenza in Hz). Default: A4 (diapason)"
+        "--subharm-fund", type=note_name_or_frequency, default="A5",
+        help="Fondamentale per la serie subarmonica (nota es. 'A4' o frequenza in Hz). Default: A5"
+    )
+    # Controllo mappatura MIDI
+    parser.add_argument(
+        "--midi-truncate", action="store_true",
+        help="Forza il troncamento delle altezze che eccedono il range MIDI 0..127 invece di adattare la basekey"
     )
 
-    # File di output (non ancora utilizzato in questa versione)
+    # File di output
     parser.add_argument("output_file", help="File di output con la tabella di accordatura")
 
     # Se non sono stati passati argomenti, mostra l'help e termina
@@ -1030,25 +1284,27 @@ def main():
         basenote = convert_midi_to_hz(basenote_midi, args.diapason)
 
     # Determina la fondamentale per il confronto (serie armonica e ancoraggio 12TET)
-    if args.compare_fund is None:
+    # Usa default= di argparse: "basenote" indica di usare la basenote calcolata
+    cf = args.compare_fund
+    if isinstance(cf, str) and cf.lower() == "basenote":
         compare_fund_hz = basenote
+    elif isinstance(cf, float):
+        compare_fund_hz = cf
     else:
-        if isinstance(args.compare_fund, float):
-            compare_fund_hz = args.compare_fund
-        else:
-            # è un nome di nota: convertilo con il diapason corrente
-            cf_midi = convert_note_name_to_midi(args.compare_fund)
-            compare_fund_hz = convert_midi_to_hz(cf_midi, args.diapason)
+        # è un nome di nota: convertilo con il diapason corrente
+        cf_midi = convert_note_name_to_midi(cf)
+        compare_fund_hz = convert_midi_to_hz(cf_midi, args.diapason)
 
-    # Determina la fondamentale per la serie subarmonica (di default A4 = diapason)
-    if args.subharm_fund is None:
+    # Determina la fondamentale per la serie subarmonica (default via argparse: "A5")
+    sf = args.subharm_fund
+    if isinstance(sf, float):
+        subharm_fund_hz = sf
+    elif sf is None:
+        # retrocompatibilità: se assente, usa A4 (diapason)
         subharm_fund_hz = float(args.diapason)
     else:
-        if isinstance(args.subharm_fund, float):
-            subharm_fund_hz = args.subharm_fund
-        else:
-            sh_midi = convert_note_name_to_midi(args.subharm_fund)
-            subharm_fund_hz = convert_midi_to_hz(sh_midi, args.diapason)
+        sh_midi = convert_note_name_to_midi(str(sf))
+        subharm_fund_hz = convert_midi_to_hz(sh_midi, args.diapason)
 
     # Imposta la fondamentale subarmonica di default per le esportazioni
     global DEFAULT_SUBHARM_FUND_HZ
@@ -1068,59 +1324,61 @@ def main():
         ratios = build_natural_ratios(a_max, b_max, reduce_octave=(not args.no_reduce))
         # Applica ambitus/span su ottave
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
-        print_step_hz_table(ratios_spanned, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
+        # MIDI fit (adapt or truncate)
+        ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
+        print_step_hz_table(ratios_eff, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
         export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
-        export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
+        export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
             diapason_hz = float(args.diapason)
         except TypeError:
             diapason_hz = 440.0
-        export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
+        export_comparison_tables(export_base, ratios_eff, basekey_eff, basenote, diapason_hz,
                                  compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align,
                                  subharm_fund_hz=subharm_fund_hz)
         if args.export_tun:
-            write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
+            write_tun_file(export_base, ratios_eff, basekey_eff, basenote)
         return
 
     # Sistema Danielou: esponenti opzionali via --danielou oppure griglia completa via --danielou-all
     if args.danielou_all:
         ratios = build_danielou_ratios(full_grid=True, reduce_octave=(not args.no_reduce))
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
-        print_step_hz_table(ratios_spanned, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
+        ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
+        print_step_hz_table(ratios_eff, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
         export_base = args.output_file if (not existed or fnum <= 1) else f"{args.output_file}_{fnum}"
-        export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
+        export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
             diapason_hz = float(args.diapason)
         except TypeError:
             diapason_hz = 440.0
-        export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
+        export_comparison_tables(export_base, ratios_eff, basekey_eff, basenote, diapason_hz,
                                  compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
         if args.export_tun:
-            write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
+            write_tun_file(export_base, ratios_eff, basekey_eff, basenote)
         return
 
     if args.danielou is not None:
-        # Se è stato passato --danielou senza argomenti, genera il sottoinsieme predefinito
-        if tuple(args.danielou) == (0, 0, 1):
-            ratios = build_danielou_ratios(full_grid=False, reduce_octave=(not args.no_reduce))
-        else:
-            a, b, c = args.danielou
-            ratios = danielou_from_exponents(a, b, c, reduce_octave=(not args.no_reduce))
+        # Calcolo manuale: genera solo i rapporti per le terne specificate
+        ratios: list[float] = []
+        for (a, b, c) in args.danielou:
+            ratios.extend(danielou_from_exponents(a, b, c, reduce_octave=(not args.no_reduce)))
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
-        print_step_hz_table(ratios_spanned, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
+        ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
+        print_step_hz_table(ratios_eff, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
         export_base = args.output_file if (not existed or fnum <= 1) else f"{args.output_file}_{fnum}"
-        export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
+        export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
             diapason_hz = float(args.diapason)
         except TypeError:
             diapason_hz = 440.0
-        export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
+        export_comparison_tables(export_base, ratios_eff, basekey_eff, basenote, diapason_hz,
                                  compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
         if args.export_tun:
-            write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
+            write_tun_file(export_base, ratios_eff, basekey_eff, basenote)
         return
 
     # Sistema geometrico: se specificato, priorità rispetto a -et
@@ -1174,18 +1432,19 @@ def main():
             ratios.append(r_value)
         # Applica span su ottave
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
-        print_step_hz_table(ratios_spanned, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
+        ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
+        print_step_hz_table(ratios_eff, basenote)
+        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
         export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
-        export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
+        export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
             diapason_hz = float(args.diapason)
         except TypeError:
             diapason_hz = 440.0
-        export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
+        export_comparison_tables(export_base, ratios_eff, basekey_eff, basenote, diapason_hz,
                                  compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
         if args.export_tun:
-            write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
+            write_tun_file(export_base, ratios_eff, basekey_eff, basenote)
         return
 
     # Validazione presenza -et
@@ -1222,17 +1481,18 @@ def main():
     # Intervallo di ripetizione per ET: exp(cents/ELLIS_CONVERSION_FACTOR)
     interval_factor = math.exp((cents / ELLIS_CONVERSION_FACTOR))
     ratios_spanned = repeat_ratios(base_ratios, args.span, interval_factor)
-    print_step_hz_table(ratios_spanned, basenote)
-    fnum, existed = write_cpstun_table(args.output_file, ratios_spanned, args.basekey, basenote)
+    ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
+    print_step_hz_table(ratios_eff, basenote)
+    fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote)
     export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
-    export_system_tables(export_base, ratios_spanned, args.basekey, basenote)
+    export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
     try:
         diapason_hz = float(args.diapason)
     except TypeError:
         diapason_hz = 440.0
-    export_comparison_tables(export_base, ratios_spanned, args.basekey, basenote, diapason_hz,
+    export_comparison_tables(export_base, ratios_eff, basekey_eff, basenote, diapason_hz,
                              compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
     if args.export_tun:
-        write_tun_file(export_base, ratios_spanned, args.basekey, basenote)
+        write_tun_file(export_base, ratios_eff, basekey_eff, basenote)
 if __name__ == "__main__":
     main()
