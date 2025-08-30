@@ -640,9 +640,12 @@ def write_cpstun_table(output_base: str, ratios: list[float], basekey: int, base
 
     # determina header cpstun
     numgrades = int(len(ratios_sorted))
-    # intervallo di ripetizione: usa interval_value se fornito (>0), altrimenti inferenza di fallback
-    if interval_value is not None and isinstance(interval_value, (int, float)) and interval_value > 0:
-        interval = float(interval_value)
+    # intervallo di ripetizione: usa interval_value se fornito; consenti esplicitamente 0 per non ripetibilità.
+    if interval_value is not None and isinstance(interval_value, (int, float)):
+        if float(interval_value) <= 0:
+            interval = 0.0
+        else:
+            interval = float(interval_value)
     else:
         try:
             rmin = min(ratios_sorted) if ratios_sorted else 1.0
@@ -1182,11 +1185,11 @@ def main():
     """
     parser = argparse.ArgumentParser(
         description=(
-            "SIM. Assistente software per i sistemi di intonazione musicali. "
+            "SIM. Assistente software per i sistemi di intonazione musicale. "
             "Generatore di tabelle/rapporti per cpstun in Csound, file TUN e tabelle di comparazione con 12TET. "
             f"Versione {__version__}"
         ),
-        epilog="Autore: LUCA BIMBI, Agosto 2025"
+        epilog="Copyright (C) 2025 Luca Bimbi. Questo progetto è rilasciato sotto licenza MIT. Vedi il file LICENSE"
     )
 
     # Versione del programma
@@ -1253,6 +1256,10 @@ def main():
     parser.add_argument(
         "--span", "--ambitus", dest="span", type=int, default=1,
         help="Numero di ripetizioni dell'intervallo base del sistema (default: 1). Es.: --span 3"
+    )
+    parser.add_argument(
+        "--interval-zero", action="store_true",
+        help="Imposta interval=0 nella tabella cpstun (.csd) per non ripetibilità: in questo caso l'ambitus (--span) è considerato e si elencano tanti ratio quanti sono gli step × span",
     )
     parser.add_argument(
         "--export-tun", action="store_true",
@@ -1345,12 +1352,24 @@ def main():
             print("A_MAX e B_MAX devono essere >= 0 per --natural.")
             return
         ratios = build_natural_ratios(a_max, b_max, reduce_octave=(not args.no_reduce))
-        # Applica ambitus/span su ottave
+        # Applica ambitus/span su ottave per stampa e confronti
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
-        # MIDI fit (adapt or truncate)
+        # MIDI fit (adapt or truncate) per export/stampa
         ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
         print_step_hz_table(ratios_eff, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, 2.0)
+
+        # Preparazione dati per CSD:
+        # - di default ignora ambitus (tabella ripetibile tramite 'interval')
+        # - con --interval-zero considera l'ambitus: tabella non ripetibile con tutti gli step ripetuti
+        if getattr(args, "interval_zero", False):
+            csd_input = ratios_spanned
+            csd_interval = 0.0
+        else:
+            csd_input = ratios
+            csd_interval = 2.0
+        csd_ratios, csd_basekey = ensure_midi_fit(csd_input, args.basekey, args.midi_truncate)
+        fnum, existed = write_cpstun_table(args.output_file, csd_ratios, csd_basekey, basenote, csd_interval)
+
         export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
         export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
@@ -1370,7 +1389,16 @@ def main():
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
         ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
         print_step_hz_table(ratios_eff, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, 2.0)
+
+        # CSD: con --interval-zero considera l'ambitus (non ripetibile); altrimenti ignora ambitus e usa intervallo di ottava
+        if getattr(args, "interval_zero", False):
+            csd_input = ratios_spanned
+            csd_interval = 0.0
+        else:
+            csd_input = ratios
+            csd_interval = 2.0
+        csd_ratios, csd_basekey = ensure_midi_fit(csd_input, args.basekey, args.midi_truncate)
+        fnum, existed = write_cpstun_table(args.output_file, csd_ratios, csd_basekey, basenote, csd_interval)
         export_base = args.output_file if (not existed or fnum <= 1) else f"{args.output_file}_{fnum}"
         export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
@@ -1391,7 +1419,16 @@ def main():
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
         ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
         print_step_hz_table(ratios_eff, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, 2.0)
+
+        # CSD: con --interval-zero considera l'ambitus (non ripetibile); altrimenti ignora ambitus e usa intervallo di ottava
+        if getattr(args, "interval_zero", False):
+            csd_input = ratios_spanned
+            csd_interval = 0.0
+        else:
+            csd_input = ratios
+            csd_interval = 2.0
+        csd_ratios, csd_basekey = ensure_midi_fit(csd_input, args.basekey, args.midi_truncate)
+        fnum, existed = write_cpstun_table(args.output_file, csd_ratios, csd_basekey, basenote, csd_interval)
         export_base = args.output_file if (not existed or fnum <= 1) else f"{args.output_file}_{fnum}"
         export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
@@ -1404,7 +1441,7 @@ def main():
             write_tun_file(export_base, ratios_eff, basekey_eff, basenote)
         return
 
-    # Sistema geometrico: se specificato, priorità rispetto a -et
+    # Sistema geometrico: se specificato, priorità rispetto a --et
     if args.geometric:
         gen_str, steps_str = args.geometric
         try:
@@ -1457,7 +1494,16 @@ def main():
         ratios_spanned = repeat_ratios(ratios, args.span, 2.0)
         ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
         print_step_hz_table(ratios_eff, basenote)
-        fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, 2.0)
+
+        # CSD: con --interval-zero considera l'ambitus (non ripetibile); altrimenti ignora ambitus e usa intervallo di ottava
+        if getattr(args, "interval_zero", False):
+            csd_input = ratios_spanned
+            csd_interval = 0.0
+        else:
+            csd_input = ratios
+            csd_interval = 2.0
+        csd_ratios, csd_basekey = ensure_midi_fit(csd_input, args.basekey, args.midi_truncate)
+        fnum, existed = write_cpstun_table(args.output_file, csd_ratios, csd_basekey, basenote, csd_interval)
         export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
         export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
         try:
@@ -1503,10 +1549,21 @@ def main():
         base_ratios.append(r_value)
     # Intervallo di ripetizione per ET: exp(cents/ELLIS_CONVERSION_FACTOR)
     interval_factor = math.exp((cents / ELLIS_CONVERSION_FACTOR))
+    # Span per stampa e confronti
     ratios_spanned = repeat_ratios(base_ratios, args.span, interval_factor)
     ratios_eff, basekey_eff = ensure_midi_fit(ratios_spanned, args.basekey, args.midi_truncate)
     print_step_hz_table(ratios_eff, basenote)
-    fnum, existed = write_cpstun_table(args.output_file, ratios_eff, basekey_eff, basenote, interval_factor)
+
+    # CSD: con --interval-zero considera l'ambitus (non ripetibile); altrimenti ignora ambitus e usa intervallo del sistema
+    if getattr(args, "interval_zero", False):
+        csd_input = ratios_spanned
+        csd_interval = 0.0
+    else:
+        csd_input = base_ratios
+        csd_interval = interval_factor
+    csd_ratios, csd_basekey = ensure_midi_fit(csd_input, args.basekey, args.midi_truncate)
+    fnum, existed = write_cpstun_table(args.output_file, csd_ratios, csd_basekey, basenote, csd_interval)
+
     export_base = args.output_file if not existed else f"{args.output_file}_{fnum}"
     export_system_tables(export_base, ratios_eff, basekey_eff, basenote)
     try:
@@ -1517,5 +1574,6 @@ def main():
                              compare_fund_hz=compare_fund_hz, tet_align=args.compare_tet_align)
     if args.export_tun:
         write_tun_file(export_base, ratios_eff, basekey_eff, basenote)
+        
 if __name__ == "__main__":
     main()

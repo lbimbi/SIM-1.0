@@ -299,6 +299,11 @@ Nota: i ratio sono scritti in ordine crescente.
 f 1 0 16 -2  12 2.0 440.0 60  1.0 1.059463 1.122462 ...
 ```
 
+Ambitus e interval:
+- Di default la generazione del file .csd ignora l'ambitus (--span/--ambitus). La ripetizione del sistema è governata dal valore di "interval" nella tabella cpstun.
+- Per tabelle ripetibili, si usa l'intervallo del sistema (es. 2.0 per l'ottava, oppure exp(cents/...) per ET) e si elencano solo i gradi base (tanti quanti gli step del sistema).
+- Se vuoi disattivare la ripetizione, usa l'opzione --interval-zero: in tal caso interval=0 e la tabella è non ripetibile; vengono elencati tanti ratio quanti sono gli step × span (ambitus considerato).
+
 **Struttura dati:**
 - `numgrades`: numero di rapporti
 - `interval`: 2.0 per ottava, 0.0 se non definibile
@@ -542,15 +547,14 @@ Per utilizzare il programma con versioni di Python precedenti alla 3.10, è nece
 from fractions import Fraction
 
 def reduce_to_octave(value: Fraction | float):
-
+    pass
 
 # Python 3.6-3.9
 from typing import Union
 from fractions import Fraction
 
 def reduce_to_octave(value: Union[Fraction, float]):
-
-
+    pass
 ```
 
 Le funzioni da modificare sono:
