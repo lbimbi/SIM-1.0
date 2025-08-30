@@ -626,8 +626,6 @@ DEALINGS IN THE SOFTWARE.
 # 19-TET
 ./sim.py --et 19 1200 out
 
-# Serie armonica (primi 16)
-./sim.py --geometric 1 16 --no-reduce out
 ```
 
 ### Tabella Rapporti Comuni
