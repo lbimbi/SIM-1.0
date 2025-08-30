@@ -542,14 +542,14 @@ Per utilizzare il programma con versioni di Python precedenti alla 3.10, è nece
 from fractions import Fraction
 
 def reduce_to_octave(value: Fraction | float):
-    pass
+
 
 # Python 3.6-3.9
 from typing import Union
 from fractions import Fraction
 
 def reduce_to_octave(value: Union[Fraction, float]):
-    pass
+
 
 ```
 
