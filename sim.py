@@ -380,29 +380,43 @@ def int_or_fraction(value):
 
 
 def parse_danielou_tuple(value: str) -> tuple[int, int, int]:
-    """Argparse type: converte una stringa "a,b,c" oppure "a:b:c" in una tupla di tre interi.
+    """Argparse type: converte stringhe tipo "a,b,c" in una tupla (a,b,c).
 
-    - Consente spazi opzionali attorno ai separatori.
-    - Esempi: "0,0,1", "1,-2,3", "1:2:-1".
+    Formati accettati:
+    - "a,b,c" (con spazi opzionali)
+    - "a:b:c", "a;b;c"
+    - "[a,b,c]", "(a,b,c)", "{a,b,c}"
+    - singolo intero "a" → (a, 0, 1)
     """
     if value is None:
         # dovrebbe essere gestito da 'const' su argparse
         return (0, 0, 1)
-    # Normalizza i separatori accettati
-    for sep in (',', ':'):
-        if sep in value:
-            parts = [p.strip() for p in value.split(sep)]
-            break
-    else:
-        # Se nessun separatore riconosciuto, prova a interpretare come singolo intero a => (a,0,1)
-        value = value.strip()
+
+    s = str(value).strip()
+    # Rimuove eventuali parentesi esterne
+    if (s.startswith('[') and s.endswith(']')) or \
+       (s.startswith('(') and s.endswith(')')) or \
+       (s.startswith('{') and s.endswith('}')):
+        s = s[1:-1].strip()
+
+    # Normalizza separatori secondari in virgola
+    for sep in (':', ';'):
+        s = s.replace(sep, ',')
+
+    # Rimuove virgole di coda/duplicati e splitta
+    s = s.strip(',')
+    parts = [p.strip() for p in s.split(',') if p.strip() != '']
+
+    # Fallback: un singolo intero => (a,0,1)
+    if len(parts) == 1:
         try:
-            a = int(value)
+            a = int(parts[0])
             return (a, 0, 1)
         except ValueError:
             raise argparse.ArgumentTypeError(
                 "Formato non valido per --danielou. Usa 'a,b,c' (es. 0,0,1)."
             )
+
     if len(parts) != 3:
         raise argparse.ArgumentTypeError(
             "Formato non valido per --danielou. Usa 'a,b,c' (es. 0,0,1)."
@@ -1212,10 +1226,10 @@ def main():
     )
     # Sistema Danielou
     parser.add_argument(
-        "--danielou", nargs="+", type=parse_danielou_tuple, default=None,
+        "--danielou", action="append", type=parse_danielou_tuple, default=None,
         help=(
-            "Sistema Danielou (manuale): specifica una o più terne 'a,b,c' (es. 1,2,-1 0,0,0). "
-            "Genera solo i rapporti indicati. Usa --danielou-all per la griglia completa."
+            "Sistema Danielou (manuale): specifica una terna 'a,b,c' (es. 1,2,-1). "
+            "Ripeti l'opzione per più terne. Genera solo i rapporti indicati. Usa --danielou-all per la griglia completa."
         )
     )
     parser.add_argument(

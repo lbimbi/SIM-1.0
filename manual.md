@@ -184,6 +184,17 @@ Opzioni di confronto:
 --danielou-all      # Griglia completa (fino a 53 rapporti)
 ```
 
+Nota: se il primo valore (a) è negativo, alcune shell/argparse possono interpretarlo come un'altra opzione.
+Usa la sintassi con "=" e virgolette per evitare ambiguità, ad esempio:
+```bash
+./sim.py --danielou="-1,2,0" out_file
+```
+
+Esempio multi-terna (triplette multiple, inclusa una con a negativo):
+```bash
+./sim.py --danielou="a,b,c" --danielou="a,b,c" --danielou="-a,b,c" out_file
+```
+
 ---
 
 ## Sistemi di Accordatura
@@ -263,6 +274,12 @@ python3 sim.py --danielou-all output_danielou_full
 
 # Esponenti espliciti: a=1, b=2, c=-1
 python3 sim.py --danielou 1,2,-1 output_danielou_exp
+```
+
+Nota su esponenti negativi: se il primo valore (a) è negativo, usa la sintassi con "=" e virgolette per evitare che la shell/argparse lo interpreti come un'opzione.
+Esempio robusto:
+```bash
+python3 sim.py --danielou="-1,2,0" output_danielou_neg
 ```
 
 ---
@@ -525,13 +542,14 @@ Per utilizzare il programma con versioni di Python precedenti alla 3.10, è nece
 from fractions import Fraction
 
 def reduce_to_octave(value: Fraction | float):
-
+    pass
 
 # Python 3.6-3.9
 from typing import Union
 from fractions import Fraction
 
 def reduce_to_octave(value: Union[Fraction, float]):
+    pass
 
 ```
 

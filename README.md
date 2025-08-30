@@ -19,6 +19,21 @@ Esempio rapido (Danielou con esponenti):
 python3 sim.py --basenote 440 --danielou 1,2,-1 out_dan_exp
 ```
 
+Nota su esponenti negativi: se il primo valore (a) è negativo, usa la sintassi con "=" e virgolette per evitare che la shell/argparse lo interpreti come un'opzione.
+Esempio robusto:
+```bash
+python3 sim.py --danielou="-1,2,0" out_dan_neg
+```
+
+Esempio multi-terna (triplette multiple, inclusa una con a negativo):
+```bash
+python3 sim.py \
+  --danielou="a,b,c" \
+  --danielou="a,b,c" \
+  --danielou="-a,b,c" \
+  out_file
+```
+
 ## Licenza
 MIT License
 
