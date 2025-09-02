@@ -13,7 +13,7 @@ Caratteristiche principali:
 - Confronto configurabile (12TET, armonica e subarmonica): `--compare-fund` (default=basenote; può essere usato senza argomento), `--compare-tet-align {same,nearest}`, `--subharm-fund` (default: A5). Colonne TET_Hz e TET_Note in ogni riga; ordinamento crescente per tutte le colonne, cut‑off: armoniche ≤ 10 kHz e subarmoniche ≥ 16 Hz; evidenziazione < 17 Hz solo nei TXT (in Excel restano i riempimenti colore). Flag `--midi-truncate` per troncamento al range MIDI 0..127.
 - File `.txt` con colonne allineate a larghezza fissa per etichette e valori.
 - Le tabelle cpstun nel file `.csd` sono scritte con i ratio in ordine crescente.
-- File `.tun` (AnaMark TUN): 128 righe `Note n=... cents` in ordine 0→127, con valori in cents assoluti riferiti a 8.1757989156437073336 Hz (riferimento AnaMark, A=440). Il segmento personalizzato derivato dai ratios è ordinato in modo crescente.
+- File `.tun` (AnaMark TUN): 128 righe `Note n=... cents` in ordine 0→127, con valori in cents assoluti riferiti a 8.1757989156437073336 Hz (riferimento AnaMark, A=440). Il segmento personalizzato derivato dai ratios è ordinato in modo crescente. Per impostazione predefinita i valori sono arrotondati a due decimali; con `--tun-integer` vengono esportati come interi (senza decimali).
 - Sistema geometrico: `INTERVAL` come intero senza suffisso è interpretato in cents (es. 700 → 700c); accetta anche il suffisso `c` e, per indicare un rapporto, usare float o frazione (es. 2.0 o 2/1).
 
 Esempio rapido (Danielou con esponenti):
@@ -46,6 +46,9 @@ python3 SIM-2NV.py out
 
 # esporta anche AnaMark .tun
 python3 SIM-2NV.py --export-tun out
+
+# .tun con cents interi (arrotondamento al valore più vicino)
+python3 SIM-2NV.py --export-tun --tun-integer out_int
 
 # sistema Danielou (esponenti); attenzione agli esponenti negativi
 python3 SIM-2NV.py --danielou "-1,2,0" out_dan

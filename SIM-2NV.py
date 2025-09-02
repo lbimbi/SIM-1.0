@@ -574,7 +574,7 @@ def write_cpstun_table(output_base: str, ratios: List[float], basekey: int,
 
 
 def write_tun_file(output_base: str, ratios: List[float], basekey: int,
-                   basefrequency: float) -> None:
+                   basefrequency: float, tun_integer: bool = False) -> None:
     """Esporta un file .tun (AnaMark TUN) con valori espressi in cents assoluti riferiti a 8.1757989156437073336 Hz.
     Struttura: [Tuning] + 128 righe "note X=Y" (cents assoluti)."""
     tun_path = f"{output_base}.tun"
@@ -611,7 +611,11 @@ def write_tun_file(output_base: str, ratios: List[float], basekey: int,
             cents = 1200.0 * math.log2(f / f_ref)
         else:
             cents = 0.0 if n == 0 else 0.0
-        lines.append(f"note {n}={cents:.10f}")
+        if tun_integer:
+            val = str(int(round(cents)))
+        else:
+            val = f"{cents:.2f}"
+        lines.append(f"Note {n}={val}")
 
     try:
         with open(tun_path, "w", encoding="utf-8") as f:
@@ -1062,6 +1066,8 @@ def main():
                         help="Imposta interval=0 in cpstun")
     parser.add_argument("--export-tun", action="store_true",
                         help="Esporta file .tun")
+    parser.add_argument("--tun-integer", action="store_true",
+                        help=".tun: arrotonda i cents al valore intero più vicino (default: due decimali)")
 
     # Confronto
     parser.add_argument("--compare-fund", nargs="?", type=note_name_or_frequency,
@@ -1161,7 +1167,7 @@ def main():
                              args.compare_tet_align, subharm_fund_hz)
 
     if args.export_tun:
-        write_tun_file(export_base, ratios_eff, basekey_eff, basenote)
+        write_tun_file(export_base, ratios_eff, basekey_eff, basenote, args.tun_integer)
 
 
 if __name__ == "__main__":

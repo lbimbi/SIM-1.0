@@ -105,6 +105,7 @@ Opzioni aggiuntive:
 - `--span N` (`--ambitus N`) — ripete la serie su N intervalli di ampiezza `INTERVAL` (default 1).
 - `--interval-zero` — forza `interval=0` nel GEN -2 (usa `ratios` non ripetuti per la tabella cpstun).
 - `--export-tun` — esporta file `AnaMark .tun` basato su 128 note.
+- `--tun-integer` — per i file `.tun`: arrotonda i cents al valore intero più vicino (senza decimali). Default: due decimali.
 
 Confronti:
 - `--compare-fund <val>` — fondamentale per 12-TET e armoniche nella tabella di confronto. Predefinito: `basenote` (la stessa usata per Hz custom). Accetta `basenote`, un nome nota o una frequenza.
@@ -145,6 +146,7 @@ Posizionale:
 
 2) File `.tun` (opzionale, con `--export-tun`)
 - `OUTPUT_BASE.tun` con 128 righe `Note n=... cents` (cents assoluti riferiti a 8.1757989156437073336 Hz, riferimento AnaMark/A=440), ricavate dai `ratios` posizionati su `basekey` al di sopra della `basefrequency` (calcolata da `--basenote` e `--diapason`). Le note fuori dall’intervallo o sprovviste di ratio usano 12-TET rispetto alla base. Ordine: le righe sono per note MIDI 0→127; il segmento personalizzato derivato dai ratios è ordinato in modo crescente, così i cents aumentano con il numero di nota.
+- Formato numerico: per impostazione predefinita i valori sono arrotondati al più vicino con massimo due decimali; con `--tun-integer` i valori sono arrotondati ai cents interi, senza punto e senza decimali.
 
 3) Tabelle del sistema
 - Testo: `OUTPUT_BASE_system.txt` con colonne: `Step`, `MIDI`, `Ratio`, `Hz`.
@@ -213,6 +215,11 @@ python SIM-2NV.py --danielou 1,0,0 --danielou 0,3,0 outDanM
 8) Cambiare nota/frequenza base e generare .tun:
 ```
 python SIM-2NV.py --basenote A4 --diapason 442 --export-tun outA442
+```
+
+8b) Esportare .tun con cents interi (arrotondamento al valore più vicino, senza decimali):
+```
+python SIM-2NV.py --export-tun --tun-integer out_int
 ```
 
 9) Confronto: fondamentale di confronto diversa dalla base custom e subarmonica da 440 Hz:
