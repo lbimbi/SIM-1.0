@@ -127,8 +127,8 @@ Posizionale:
 - `--danielou a,b,c` consente di aggiungere manualmente rapporti: (6/5)^a * (3/2)^b * 2^c, poi ridotti all’ottava salvo `--no-reduce`. L’opzione è ripetibile.
 
 3) Geometrico
-- `--geometric GEN STEPS INTERVAL` costruisce la sequenza r^0, r^1, ..., r^(STEPS-1) dove r=GEN, ridotta nel dominio [1,INTERVAL) salvo `--no-reduce`. 
-- `INTERVAL` supporta formati in cents: es. `700c` ≈ quinta giusta.
+- `--geometric GEN STEPS INTERVAL` costruisce la sequenza r^0, r^1, ..., r^(STEPS-1) dove r=GEN, ridotta nel dominio [1,INTERVAL) salvo `--no-reduce`.
+- `INTERVAL`: intero senza suffisso = cents (es. 700 → 700 cents); per rapporto usa float o frazione (es. 2.0 o 2/1). Accetta anche cents con suffisso `c` (es. `700c`).
 
 4) Temperamento equabile (ET)
 - `--et INDEX INTERVAL` genera la radice `ratio = exp((INTERVAL/ln(2))/1200)^(1/INDEX)` e i rapporti `ratio^i` per i=0..INDEX-1. `INTERVAL` accetta frazione (convertita in cents) o numero di cents.
@@ -144,7 +144,7 @@ Posizionale:
 - Se il `.csd` esisteva già, l’output base per gli altri file sarà `OUTPUT_BASE_<fnum>` (con `<fnum>` il numero della nuova tabella creata).
 
 2) File `.tun` (opzionale, con `--export-tun`)
-- `OUTPUT_BASE.tun` con 128 righe `Note n=... Hz`, ricavate dai `ratios` posizionati su `basekey` al di sopra della `basefrequency` (calcolata da `--basenote` e `--diapason`). Le note fuori dall’intervallo o sprovviste di ratio usano 12-TET rispetto alla base.
+- `OUTPUT_BASE.tun` con 128 righe `Note n=... cents` (cents assoluti riferiti a 8.1757989156437073336 Hz, riferimento AnaMark/A=440), ricavate dai `ratios` posizionati su `basekey` al di sopra della `basefrequency` (calcolata da `--basenote` e `--diapason`). Le note fuori dall’intervallo o sprovviste di ratio usano 12-TET rispetto alla base. Ordine: le righe sono per note MIDI 0→127; il segmento personalizzato derivato dai ratios è ordinato in modo crescente, così i cents aumentano con il numero di nota.
 
 3) Tabelle del sistema
 - Testo: `OUTPUT_BASE_system.txt` con colonne: `Step`, `MIDI`, `Ratio`, `Hz`.
@@ -187,7 +187,7 @@ python SIM-2NV.py --et 19 1200 out19
 
 3) Sistema geometrico con generatore 3/2, 7 passi, intervallo 2/1:
 ```
-python SIM-2NV.py --geometric 3/2 7 2 outGeom
+python SIM-2NV.py --geometric 3/2 7 2/1 outGeom
 ```
 
 4) Sistema geometrico con intervallo espresso in cents (quinta ≈ 700c):
