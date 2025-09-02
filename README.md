@@ -13,21 +13,23 @@ Caratteristiche principali:
 - Confronto configurabile (12TET, armonica e subarmonica): `--compare-fund` (default=basenote; può essere usato senza argomento), `--compare-tet-align {same,nearest}`, `--subharm-fund` (default: A5). Colonne TET_Hz e TET_Note in ogni riga; ordinamento crescente per tutte le colonne, cut‑off: armoniche ≤ 10 kHz e subarmoniche ≥ 16 Hz; evidenziazione < 17 Hz solo nei TXT (in Excel restano i riempimenti colore). Flag `--midi-truncate` per troncamento al range MIDI 0..127.
 - File `.txt` con colonne allineate a larghezza fissa per etichette e valori.
 - Le tabelle cpstun nel file `.csd` sono scritte con i ratio in ordine crescente.
+- File `.tun` (AnaMark TUN): 128 righe `Note n=... cents` in ordine 0→127, con valori in cents assoluti riferiti a 8.1757989156437073336 Hz (riferimento AnaMark, A=440). Il segmento personalizzato derivato dai ratios è ordinato in modo crescente.
+- Sistema geometrico: `INTERVAL` come intero senza suffisso è interpretato in cents (es. 700 → 700c); accetta anche il suffisso `c` e, per indicare un rapporto, usare float o frazione (es. 2.0 o 2/1).
 
 Esempio rapido (Danielou con esponenti):
 ```bash
-python3 sim.py --basenote 440 --danielou 1,2,-1 out_dan_exp
+python3 SIM-2NV.py --basenote 440 --danielou 1,2,-1 out_dan_exp
 ```
 
 Nota su esponenti negativi: se il primo valore (a) è negativo, usa la sintassi con "=" e virgolette per evitare che la shell/argparse lo interpreti come un'opzione.
 Esempio robusto:
 ```bash
-python3 sim.py --danielou="-1,2,0" out_dan_neg
+python3 SIM-2NV.py --danielou="-1,2,0" out_dan_neg
 ```
 
 Esempio multi-terna (triplette multiple, inclusa una con a negativo):
 ```bash
-python3 sim.py \
+python3 SIM-2NV.py \
   --danielou="a,b,c" \
   --danielou="a,b,c" \
   --danielou="-a,b,c" \
@@ -48,8 +50,8 @@ python3 SIM-2NV.py --export-tun out
 # sistema Danielou (esponenti); attenzione agli esponenti negativi
 python3 SIM-2NV.py --danielou "-1,2,0" out_dan
 
-# progressione geometrica: generatore 3/2, 12 passi, intervallo 2.0 (ottava)
-python3 SIM-2NV.py --geometric 3/2 12 2.0 out_geo
+# progressione geometrica: generatore 3/2, 12 passi, intervallo 2/1 (ottava)
+python3 SIM-2NV.py --geometric 3/2 12 2/1 out_geo
 ```
 
 Note:
