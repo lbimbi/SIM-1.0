@@ -34,6 +34,28 @@ python3 sim.py \
   out_file
 ```
 
+## SIM-2NV.py
+`SIM-2NV.py` è una variante dell'utility orientata alla generazione di sistemi e file di supporto con un set di opzioni ampliato e una pipeline di export completa (cpstun, .tun, tabelle TXT/XLSX, confronti). Per i dettagli completi vedere il manuale dedicato: [manual-2nv.md](manual-2nv.md).
+
+Uso rapido:
+```bash
+# default 12-TET su ottava, genera out.csd, out_system.txt, out_compare.txt
+python3 SIM-2NV.py out
+
+# esporta anche AnaMark .tun
+python3 SIM-2NV.py --export-tun out
+
+# sistema Danielou (esponenti); attenzione agli esponenti negativi
+python3 SIM-2NV.py --danielou "-1,2,0" out_dan
+
+# progressione geometrica: generatore 3/2, 12 passi, intervallo 2.0 (ottava)
+python3 SIM-2NV.py --geometric 3/2 12 2.0 out_geo
+```
+
+Note:
+- Opzioni di confronto disponibili: `--compare-fund`, `--compare-tet-align {same,nearest}`. Vedi manuale per dettagli su tagli e ordinamenti delle tabelle.
+- Per estendere l'ambitus oltre una singola ripetizione usare `--span N`.
+
 ## Licenza
 MIT License
 
