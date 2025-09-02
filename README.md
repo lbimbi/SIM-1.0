@@ -60,6 +60,9 @@ python3 SIM-2NV.py --geometric 3/2 12 2/1 out_geo
 Note:
 - Opzioni di confronto disponibili: `--compare-fund`, `--compare-tet-align {same,nearest}`. Vedi manuale per dettagli su tagli e ordinamenti delle tabelle.
 - Per estendere l'ambitus oltre una singola ripetizione usare `--span N`.
+- cpstun (GEN -2): `--interval-zero` forza `interval=0` usando la serie non ripetuta; in assenza, se i ratios sono in [1,2] viene scelto `interval=2.0`, altrimenti `0.0`.
+- Range MIDI: `--midi-truncate` tronca oltre 128 note; senza truncation il programma adatta `basekey` se necessario.
+- Export Excel (`*.xlsx`): richiede `openpyxl`; se mancante, vengono creati solo i `.txt`. 
 
 ## Licenza
 MIT License

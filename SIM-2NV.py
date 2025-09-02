@@ -6,9 +6,9 @@ Copyright (c) 2025 Luca Bimbi
 Distribuito secondo la licenza MIT - vedi il file LICENSE per i dettagli
 
 Nome programma: SIM - Sistemi intonazione musicale
-Versione: 1.5
+Versione: 1.75
 Autore: LUCA BIMBI
-Data: 2025-08-30
+Data: 2025-09-02
 """
 
 import argparse
@@ -22,9 +22,9 @@ from typing import List, Tuple, Optional, Union, Iterable, Any
 
 # Metadati di modulo
 __program_name__ = "SIM"
-__version__ = "1.5"
+__version__ = "1.75"
 __author__ = "LUCA BIMBI"
-__date__ = "2025-08-30"
+__date__ = "2025-09-02"
 
 # Costanti
 ELLIS_CONVERSION_FACTOR = 1200 / math.log(2)
@@ -39,6 +39,12 @@ MIDI_MIN = 0
 MIDI_MAX = 127
 MIDI_A4 = 69
 SEMITONES_PER_OCTAVE = 12
+
+# Costanti colonne Excel
+CUSTOM_COLUMN = "D"
+HARM_COLUMN ="E"
+SUB_COLUMN ="G"
+TET_COLUMN ="I"
 
 # Pattern per parsing file .csd
 PATTERN = re.compile(r"\bf\s*(\d+)\b")
@@ -863,13 +869,13 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
                 tet_val = base_cmp
 
             harm_cell = harm_val if harm_val is not None else None
-            d_har_cell = abs(custom_hz - harm_val) if harm_val is not None else None
-
+            # d_har_cell = abs(custom_hz - harm_val) if harm_val is not None else None
+            d_har_cell = f"=IF({HARM_COLUMN}{row_i+2}<>\"\",ABS({CUSTOM_COLUMN}{row_i+2}-{HARM_COLUMN}{row_i+2}),\"\")"
             sub_cell = sub_val if sub_val is not None else None
-            d_sub_cell = abs(custom_hz - sub_val) if sub_val is not None else None
-
+            #d_sub_cell = abs(custom_hz - sub_val) if sub_val is not None else None
+            d_sub_cell = f"=IF({SUB_COLUMN}{row_i + 2}<>\"\",ABS({CUSTOM_COLUMN}{row_i + 2}-{SUB_COLUMN}{row_i + 2}),\"\")"
             tet_note = freq_to_note_name(tet_val, diapason_hz)
-            d_tet_cell = abs(custom_hz - tet_val)
+            d_tet_cell = f"=IF({TET_COLUMN}{row_i + 2}<>\"\",ABS({CUSTOM_COLUMN}{row_i + 2}-{TET_COLUMN}{row_i + 2}),\"\")"
 
             ws.append([row_i, basekey + row_i, r, custom_hz, harm_cell, d_har_cell,
                        sub_cell, d_sub_cell, tet_val, tet_note, d_tet_cell])
@@ -1052,8 +1058,9 @@ def main():
                         ))
     parser.add_argument("--natural", nargs=2, type=int, metavar=("A_MAX", "B_MAX"),
                         help="Sistema naturale 4:5:6")
+    # Nota: per esponenti negativi usare virgolette, es.: --danielou "-1,2,0"
     parser.add_argument("--danielou", action="append", type=parse_danielou_tuple,
-                        default=None, help="Sistema Danielou manuale")
+                        default=None, help="Sistema Danielou manuale (quote gli esponenti negativi, es.: \"-1,2,0\")")
     parser.add_argument("--danielou-all", action="store_true",
                         help="Griglia completa Danielou")
 

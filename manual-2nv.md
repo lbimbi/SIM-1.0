@@ -1,10 +1,10 @@
 # SIM-2NV - Sistemi di intonazione musicale
 
-## Manuale Utente v1.5
+## Manuale Utente v1.75
 
 Autore: LUCA BIMBI  
-Data: 1 Settembre 2025  
-Versione: 1.5  
+Data: 2 Settembre 2025  
+Versione: 1.75  
 Licenza: MIT (vedi LICENSE)
 
 ---
@@ -39,7 +39,7 @@ Licenza: MIT (vedi LICENSE)
 
 ## Requisiti e Installazione
 
-- Python 3.10+ (per compatibilità con le annotazioni di tipo moderne).
+- Python 3.6+ (le annotazioni usano typing.Union; l'operatore | di 3.10+ non è richiesto).
 - Moduli standard: argparse, sys, math, re, os, shutil, fractions, typing.
 - Opzionale per export Excel: `openpyxl`.
   - Installazione: `pip install openpyxl`
@@ -80,6 +80,52 @@ Opzioni utili rapide:
 ## Parametri della Riga di Comando
 
 Nota: i default sono tra parentesi.
+
+### Tabelle riepilogative dei parametri CLI
+
+#### Base
+
+| Parametro | Argomenti | Tipo input | Obbligatorio | Default | Descrizione |
+|-----------|-----------|------------|--------------|---------|-------------|
+| `-v, --version` | - | flag | No | - | Stampa la versione del programma |
+| `--diapason` | `<Hz>` | float (Hz) | No | 440.0 | Diapason A4 in Hertz |
+| `--basekey` | `<MIDI>` | int (0..127) | No | 60 | Nota MIDI di partenza per la tabella |
+| `--basenote` | `<nome|Hz>` | nota (es. A4, F#2, Bb3) oppure float (Hz) | No | "C4" | Nota/frequenza di riferimento per i calcoli in Hz |
+
+#### Sistemi di intonazione (sceglierne uno; opzionali)
+
+| Parametro | Argomenti | Tipo input | Obbligatorio | Default | Descrizione |
+|-----------|-----------|------------|--------------|---------|-------------|
+| `--et` | `INDEX INTERVAL` | INDEX: int (>0); INTERVAL: int o frazione (cents o frazione convertita in cents) | No | `12 1200` | Temperamento equabile sull'intervallo specificato |
+| `--geometric` | `GEN STEPS INTERVAL` | GEN: int/frazione/float (>0); STEPS: int (>0); INTERVAL: rapporto (float/frazione) oppure cents (int o con suffisso `c`, `cent`, `cents`) | No | - | Progressione geometrica con riduzione nell'intervallo indicato |
+| `--natural` | `A_MAX B_MAX` | int, int (>=0) | No | - | Sistema naturale 4:5:6 con riduzione all'ottava salvo `--no-reduce` |
+| `--danielou` | `a,b,c` | tre interi (possono essere negativi; usare virgolette se necessario) | No | - | Aggiunge rapporti del sistema Danielou; opzione ripetibile |
+| `--danielou-all` | - | flag | No | - | Genera la griglia completa Danielou |
+
+#### Opzioni aggiuntive
+
+| Parametro | Argomenti | Tipo input | Obbligatorio | Default | Descrizione |
+|-----------|-----------|------------|--------------|---------|-------------|
+| `--no-reduce` | - | flag | No | - | Non riduce all'ottava/intervallo |
+| `--span`, `--ambitus` | `N` | int (>=1) | No | 1 | Ripete la serie su N intervalli di ampiezza INTERVAL |
+| `--interval-zero` | - | flag | No | - | Forza `interval=0` nella tabella cpstun (GEN -2) |
+| `--export-tun` | - | flag | No | - | Esporta file AnaMark `.tun` |
+| `--tun-integer` | - | flag | No | - | `.tun`: arrotonda i cents al valore intero più vicino |
+
+#### Confronti
+
+| Parametro | Argomenti | Tipo input | Obbligatorio | Default | Descrizione |
+|-----------|-----------|------------|--------------|---------|-------------|
+| `--compare-fund` | `[val]` | nota/Hz oppure parola chiave `basenote` | No | `basenote` | Fondamentale per confronto (opzione utilizzabile anche senza argomento) |
+| `--compare-tet-align` | `{same, nearest}` | scelta | No | `same` | Allineamento della griglia 12TET per il confronto |
+| `--subharm-fund` | `<val>` | nota/Hz | No | `A5` | Fondamentale per la serie subarmonica (se non valido, usa `diapason`) |
+| `--midi-truncate` | - | flag | No | - | Troncamento al range MIDI 0..127 anziché adattare `basekey` |
+
+#### Argomento posizionale
+
+| Parametro | Argomenti | Tipo input | Obbligatorio | Default | Descrizione |
+|-----------|-----------|------------|--------------|---------|-------------|
+| `OUTPUT_BASE` | nome base | string | No | `out` | Base dei nomi file generati (senza estensione) |
 
 Base:
 - `-v, --version` — stampa la versione.
@@ -126,6 +172,7 @@ Posizionale:
 2) Danielou
 - `--danielou-all` genera una griglia estesa (53 valori unici se la riduzione all’ottava è attiva, con 2.0 come valore finale). 
 - `--danielou a,b,c` consente di aggiungere manualmente rapporti: (6/5)^a * (3/2)^b * 2^c, poi ridotti all’ottava salvo `--no-reduce`. L’opzione è ripetibile.
+- Nota sugli esponenti negativi: racchiudere l’argomento tra virgolette per evitare ambiguità con le opzioni della shell/argparse (es.: `--danielou "-1,2,0"`).
 
 3) Geometrico
 - `--geometric GEN STEPS INTERVAL` costruisce la sequenza r^0, r^1, ..., r^(STEPS-1) dove r=GEN, ridotta nel dominio [1,INTERVAL) salvo `--no-reduce`.
@@ -244,10 +291,31 @@ Note sugli output: se `out.csd` esiste già, la nuova tabella cpstun verrà aggi
 - Serie armonica/subarmonica: sono calcolate entro limiti di sicurezza (MAX_HARMONIC_HZ=10000, MIN_SUBHARMONIC_HZ=16) e filtrate per allineamento alle frequenze custom ordinate.
 - Differenze in Hz: le colonne `DeltaHz_*` esprimono lo scostamento assoluto o diretto rispetto a `Custom_Hz` per ogni confronto.
 
+## Licenza
+
+SIM version 1.75 Copyright (c) 2025 Luca Bimbi. Distrubuted under MIT License
+
+MIT License
+
+Copyright (c) 2025 Luca Bimbi
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the “Software”), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ---
 
 ## Crediti
 
 - Programma: SIM — Sistemi di intonazione musicale.  
-- Questo manuale si riferisce specificamente a `SIM-2NV.py` (Versione 1.5).  
+- Questo manuale si riferisce specificamente a `SIM-2NV.py` (Versione 1.75).  
 - Copyright © 2025 Luca Bimbi. Licenza MIT.
